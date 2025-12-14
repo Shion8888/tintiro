@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>チンチロ</title>
+
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #111;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  h1 {
+    margin-bottom: 10px;
+    font-size: 2rem;
+  }
+
+  /* どんぶり */
+  .bowl {
+    font-size: 5rem;
+    margin: 10px 0;
+  }
+
+  /* サイコロ */
+  .dice-area {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    font-size: 3rem;
+    margin: 10px 0;
+    height: 3.5rem;
+  }
+
+  .dice {
+    display: inline-block;
+    animation: drop 0.4s ease-out;
+  }
+
+  @keyframes drop {
+    from {
+      transform: translateY(-40px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .result {
+    font-size: 1.3rem;
+    margin: 10px 0;
+    min-height: 2em;
+  }
+
+  button {
+    width: 100%;
+    font-size: 1.4rem;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: #ffcc00;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+</style>
+</head>
+
+<body>
+<div class="container">
+  <h1>🎲 チンチロ</h1>
+
+  <div class="bowl">🥣</div>
+
+  <div class="dice-area" id="dice">
+    <span class="dice">🎲</span>
+    <span class="dice">🎲</span>
+    <span class="dice">🎲</span>
+  </div>
+
+  <div class="result" id="result"></div>
+
+  <button onclick="roll()">サイコロを振る</button>
+</div>
+
+<script>
+let rolling = false;
+
+function rand() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function roll() {
+  if (rolling) return;
+  rolling = true;
+
+  const diceArea = document.getElementById("dice");
+  const resultArea = document.getElementById("result");
+  resultArea.textContent = "";
+
+  let count = 0;
+  let d1, d2, d3;
+
+  const interval = setInterval(() => {
+    d1 = rand();
+    d2 = rand();
+    d3 = rand();
+
+    diceArea.innerHTML = `
+      <span class="dice">${d1}</span>
+      <span class="dice">${d2}</span>
+      <span class="dice">${d3}</span>
+    `;
+
+    count++;
+    if (count >= 8) {
+      clearInterval(interval);
+      rolling = false;
+      judge(d1, d2, d3);
+    }
+  }, 120);
+}
+
+function judge(a, b, c) {
+  const resultArea = document.getElementById("result");
+  const dice = [a, b, c].sort();
+
+  // ゾロ目
+  if (a === b && b === c) {
+    if (a === 1) {
+      resultArea.textContent = "🎉 ピンゾロ（最強）";
+    } else {
+      resultArea.textContent = "⚡ アラシ";
+    }
+    return;
+  }
+
+  // ヒフミ
+  if (dice[0] === 1 && dice[1] === 2 && dice[2] === 3) {
+    resultArea.textContent = "💀 ヒフミ（負け）";
+    return;
+  }
+
+  // シゴロ
+  if (dice[0] === 4 && dice[1] === 5 && dice[2] === 6) {
+    resultArea.textContent = "🔥 シゴロ（勝ち）";
+    return;
+  }
+
+  // 役あり（目）
+  if (a === b || b === c || a === c) {
+    const pair = a === b ? c : a === c ? b : a;
+    resultArea.textContent = `👉 役あり：${pair}`;
+    return;
+  }
+
+  // 役なし
+  resultArea.textContent = "😐 役なし";
+}
+</script>
+</body>
+</html>
