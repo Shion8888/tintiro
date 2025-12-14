@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chinchiro Bowl (Center Dice)</title>
+<title>Top View Bowl</title>
 
 <style>
   body {
@@ -20,15 +20,16 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* =====================================================
-   Three.js 基本
+   Three.js
 ===================================================== */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-// カメラ：お椀の中が見える位置
+// カメラ：真上（俯瞰）
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 6, 7);
-camera.lookAt(0, 2.5, 0);
+camera.position.set(0, 15, 0);
+camera.lookAt(0, 0, 0);
+camera.up.set(0, 0, -1); // 画面の向きを固定
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -36,8 +37,8 @@ renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 // ライト
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const light = new THREE.DirectionalLight(0xffffff, 1.2);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const light = new THREE.DirectionalLight(0xffffff, 1.0);
 light.position.set(5, 10, 5);
 light.castShadow = true;
 scene.add(light);
@@ -49,20 +50,7 @@ const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
 /* =====================================================
-   マテリアル
-===================================================== */
-const bowlMat = new CANNON.Material("bowl");
-const diceMat = new CANNON.Material("dice");
-
-world.addContactMaterial(
-  new CANNON.ContactMaterial(bowlMat, diceMat, {
-    friction: 0.6,
-    restitution: 0.0
-  })
-);
-
-/* =====================================================
-   床（平面）
+   床（完全平面）
 ===================================================== */
 const floorMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(40, 40),
@@ -72,7 +60,7 @@ floorMesh.rotation.x = -Math.PI / 2;
 floorMesh.receiveShadow = true;
 scene.add(floorMesh);
 
-const floorBody = new CANNON.Body({ mass: 0, material: bowlMat });
+const floorBody = new CANNON.Body({ mass: 0 });
 floorBody.addShape(new CANNON.Plane());
 floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 world.addBody(floorBody);
@@ -81,9 +69,9 @@ world.addBody(floorBody);
    お椀（見た目のみ）
 ===================================================== */
 const RADIUS = 3;
-const BOWL_Y = 3.5;
+const BOWL_Y = RADIUS; // 床の上にちょうど置く
 
-// 半球（内側表示）
+// 半球（内側が見える）
 const bowlGeo = new THREE.SphereGeometry(
   RADIUS,
   64,
@@ -101,7 +89,6 @@ const bowlMesh = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0x8b5a2b })
 );
 bowlMesh.position.y = BOWL_Y;
-bowlMesh.castShadow = true;
 scene.add(bowlMesh);
 
 // 縁
@@ -114,41 +101,9 @@ rim.position.y = BOWL_Y;
 scene.add(rim);
 
 /* =====================================================
-   お椀（物理：底＋円筒）
+   サイコロ（常にお椀の真ん中）
 ===================================================== */
-const bowlBody = new CANNON.Body({ mass: 0, material: bowlMat });
-
-// 底
-const bottom = new CANNON.Plane();
-const bottomQ = new CANNON.Quaternion();
-bottomQ.setFromEuler(-Math.PI / 2, 0, 0);
-bowlBody.addShape(
-  bottom,
-  new CANNON.Vec3(0, BOWL_Y - RADIUS - 0.1, 0),
-  bottomQ
-);
-
-// 側面（円筒）
-const wallShape = new CANNON.Cylinder(
-  RADIUS * 0.92,
-  RADIUS * 0.92,
-  RADIUS,
-  32
-);
-const wallQ = new CANNON.Quaternion();
-wallQ.setFromEuler(Math.PI / 2, 0, 0);
-bowlBody.addShape(
-  wallShape,
-  new CANNON.Vec3(0, BOWL_Y - RADIUS / 2, 0),
-  wallQ
-);
-
-world.addBody(bowlBody);
-
-/* =====================================================
-   サイコロ（必ず中央）
-===================================================== */
-const DICE_SIZE = 0.35;
+const DICE_SIZE = 0.4;
 
 // 見た目
 const diceMesh = new THREE.Mesh(
@@ -161,17 +116,14 @@ scene.add(diceMesh);
 // 物理
 const diceBody = new CANNON.Body({
   mass: 1,
-  material: diceMat,
   shape: new CANNON.Box(
     new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)
   )
 });
 
-// ★ 必ずお椀の真ん中
-diceBody.position.set(0, BOWL_Y + 1.8, 0);
-
-// ★ 少しだけ横方向の初速
-diceBody.velocity.set(0.9, 0, 0);
+// ★ 常にお椀の真ん中
+diceBody.position.set(0, BOWL_Y + 1.0, 0);
+diceBody.velocity.setZero();
 diceBody.angularVelocity.setZero();
 
 world.addBody(diceBody);
