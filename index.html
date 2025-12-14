@@ -4,8 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>3D Dice</title>
+
 <style>
-  body { margin:0; overflow:hidden; background:#111; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #111;
+  }
   #btn {
     position: fixed;
     bottom: 20px;
@@ -33,9 +38,9 @@ import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(3, 4, 6);
-camera.lookAt(0, 0, 0);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 50);
+camera.position.set(0, 3.5, 6);
+camera.lookAt(0, 0.8, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
@@ -64,24 +69,29 @@ world.addBody(groundBody);
 
 // 床（描画）
 const groundMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(10, 10),
+  new THREE.PlaneGeometry(8, 8),
   new THREE.MeshStandardMaterial({ color: 0x444444 })
 );
 groundMesh.rotation.x = -Math.PI/2;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
+// ===== サイコロサイズ =====
+const DICE_SIZE = 0.6;
+
 // サイコロ（物理）
 const diceBody = new CANNON.Body({
   mass: 1,
-  shape: new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5)),
-  position: new CANNON.Vec3(0, 3, 0)
+  shape: new CANNON.Box(
+    new CANNON.Vec3(DICE_SIZE/2, DICE_SIZE/2, DICE_SIZE/2)
+  ),
+  position: new CANNON.Vec3(0, 2, 0)
 });
 world.addBody(diceBody);
 
 // サイコロ（描画）
 const diceMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1,1),
+  new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
   new THREE.MeshStandardMaterial({ color: 0xffffff })
 );
 diceMesh.castShadow = true;
@@ -92,21 +102,21 @@ document.getElementById("btn").onclick = () => {
   // リセット
   diceBody.velocity.setZero();
   diceBody.angularVelocity.setZero();
-  diceBody.position.set(0, 3, 0);
+  diceBody.position.set(0, 2, 0);
   diceBody.quaternion.set(0,0,0,1);
 
-  // ランダムな力を加える
+  // 弱めの力で転がす（画面外防止）
   diceBody.applyImpulse(
     new CANNON.Vec3(
-      (Math.random()-0.5) * 6,
-      6,
-      (Math.random()-0.5) * 6
+      (Math.random() - 0.5) * 3,
+      3.5,
+      (Math.random() - 0.5) * 3
     ),
     diceBody.position
   );
 };
 
-/* ========= アニメーションループ ========= */
+/* ========= ループ ========= */
 const clock = new THREE.Clock();
 
 function animate() {
@@ -122,7 +132,7 @@ function animate() {
 animate();
 
 window.addEventListener("resize", () => {
-  camera.aspect = innerWidth/innerHeight;
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
