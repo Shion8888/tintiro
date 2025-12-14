@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>　</title>
+<title>チンチロ</title>
 
 <style>
 body {
@@ -37,14 +37,14 @@ h1 {
   margin: 30px 0;
 }
 
-/* どんぶり画像 */
+/* どんぶり */
 .bowl {
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 380px;
-  z-index: 3;        /* 縁は最前面 */
+  z-index: 3;
   pointer-events: none;
 }
 
@@ -63,42 +63,35 @@ h1 {
   padding: 12px;
   box-sizing: border-box;
   opacity: 0;
-  z-index: 2; /* 最初は縁より奥 */
+  z-index: 2;
 }
 
 /* ===== アニメーション ===== */
-
-/* 投入 */
 .throw {
   animation: throwIntoBowl 0.9s cubic-bezier(.25,.9,.4,1) forwards;
 }
 
-/* 中でガタガタ */
 .inbowl {
   animation: inBowlShake 0.35s ease-in-out 2;
 }
 
-/* 落下 → 縁の裏 → 中 */
 @keyframes throwIntoBowl {
   0% {
     top: -140px;
     opacity: 0;
     transform: rotate(0deg);
   }
-  40% {
-    opacity: 1;
-  }
+  40% { opacity: 1; }
   65% {
-    top: 240px;          /* 縁あたり */
+    top: 240px;
     transform: rotate(240deg);
   }
   100% {
-    top: 300px;          /* どんぶりの中 */
+    top: 300px;
     transform: rotate(360deg) scale(0.95);
   }
 }
 
-/* 中で転がる */
 @keyframes inBowlShake {
   0% { transform: translateX(0) rotate(0); }
   25% { transform: translateX(6px) rotate(6deg); }
@@ -151,8 +144,6 @@ button:active {
     <div class="dice" id="d1"></div>
     <div class="dice" id="d2"></div>
     <div class="dice" id="d3"></div>
-
-    <!-- リアルどんぶり -->
     <img src="bowl.png" class="bowl">
   </div>
 
@@ -162,55 +153,82 @@ button:active {
 
 <script>
 const pipLayouts = {
-  1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]
+  1:[4],
+  2:[0,8],
+  3:[0,4,8],
+  4:[0,2,6,8],
+  5:[0,2,4,6,8],
+  6:[0,2,3,5,6,8]
 };
-let rolling=false;
 
-function rand(){return Math.floor(Math.random()*6)+1;}
+let rolling = false;
 
-function renderDie(el,val){
-  el.innerHTML=[...Array(9)].map((_,i)=>
-    `<span class="pip${pipLayouts[val].includes(i)?' on':''}"></span>`
+function rand() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function renderDie(el, val) {
+  el.innerHTML = [...Array(9)].map((_, i) =>
+    `<span class="pip${pipLayouts[val].includes(i) ? ' on' : ''}"></span>`
   ).join("");
 }
 
-function roll(){
-  if(rolling) return;
-  rolling=true;
-  document.getElementById("result").textContent="";
+function roll() {
+  if (rolling) return;
+  rolling = true;
 
-  const dices=[d1,d2,d3];
-  const values=dices.map(()=>rand());
+  const result = document.getElementById("result");
+  result.textContent = "";
 
-  dices.forEach((d,i)=>{
-    d.className="dice";
-    d.style.left=`${80+i*120}px`;
-    d.style.opacity=1;
-    renderDie(d,values[i]);
+  const dices = [d1, d2, d3];
+  const values = dices.map(() => rand());
+
+  dices.forEach((d, i) => {
+    d.className = "dice";
+    d.style.left = `${60 + i * 120}px`;
+    d.style.opacity = 1;
+    renderDie(d, values[i]);
     void d.offsetWidth;
     d.classList.add("throw");
   });
 
-  setTimeout(()=>{
-    dices.forEach(d=>d.classList.add("inbowl"));
-  },900);
+  setTimeout(() => {
+    dices.forEach(d => d.classList.add("inbowl"));
+  }, 900);
 
-  setTimeout(()=>{
-    rolling=false;
-    judge(values[0],values[1],values[2]);
-  },1600);
+  setTimeout(() => {
+    rolling = false;
+    judge(values);
+  }, 1600);
 }
 
-function judge(a,b,c){
-  const r=document.getElementById("result");
-  const s=[a,b,c].sort();
-  if(a===b&&b===c) r.textContent=a===1?"🎉 ピンゾロ":"⚡ アラシ";
-  else if(s+''==='1,2,3') r.textContent="💀 ヒフミ";
-  else if(s+''==='4,5,6') r.textContent="🔥 シゴロ";
-  else if(a===b||b===c||a===c){
-    const p=a===b?c:a===c?b:a;
-    r.textContent=`👉 役あり：${p}`;
-  } else r.textContent="😐 役なし";
+function judge(values) {
+  const r = document.getElementById("result");
+  const [a,b,c] = values;
+  const s = [...values].sort();
+
+  if (a === b && b === c) {
+    r.textContent = a === 1 ? "🎉 ピンゾロ（最強）" : "⚡ アラシ";
+    return;
+  }
+
+  if (s.join() === "1,2,3") {
+    r.textContent = "💀 ヒフミ（最弱）";
+    return;
+  }
+
+  if (s.join() === "4,5,6") {
+    r.textContent = "🔥 シゴロ";
+    return;
+  }
+
+  if (a === b || b === c || a === c) {
+    const point = a === b ? c : a === c ? b : a;
+    r.textContent = `👉 役あり：${point}`;
+    return;
+  }
+
+  r.textContent = "😐 役なし";
 }
 </script>
 </body>
