@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Paraboloid Bowl</title>
+<title>Paraboloid Colored Floor Test</title>
 
 <style>
   body {
@@ -35,56 +35,21 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* =====================================================
-   サイコロの目（Canvas生成）
-===================================================== */
-function createDiceTexture(n) {
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const ctx = c.getContext("2d");
-
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0,0,256,256);
-  ctx.fillStyle = "#000";
-
-  const r = 18;
-  const p = {
-    tl:[64,64], tr:[192,64],
-    ml:[64,128], mr:[192,128],
-    bl:[64,192], br:[192,192],
-    mc:[128,128]
-  };
-  const map = {
-    1:["mc"],
-    2:["tl","br"],
-    3:["tl","mc","br"],
-    4:["tl","tr","bl","br"],
-    5:["tl","tr","mc","bl","br"],
-    6:["tl","ml","bl","tr","mr","br"]
-  };
-  map[n].forEach(k=>{
-    ctx.beginPath();
-    ctx.arc(...p[k], r, 0, Math.PI*2);
-    ctx.fill();
-  });
-  return new THREE.CanvasTexture(c);
-}
-
-/* =====================================================
-   Three.js
+   Three.js 基本設定
 ===================================================== */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 6, 9);
-camera.lookAt(0, 1.0, 0);
+camera.lookAt(0, 0.6, 0);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-// 光
+// 光（凹凸が分かる設定）
 scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 const light = new THREE.DirectionalLight(0xffffff, 1.2);
 light.position.set(3, 6, 4);
@@ -99,54 +64,71 @@ const world = new CANNON.World({
 });
 
 /* =====================================================
-   放物面床 y = -k(x^2 + z^2)
+   放物面床（色付き）
+   y = -K (x^2 + z^2)
 ===================================================== */
 const SIZE = 20;
 const DIV  = 128;
-const K    = 0.01;
+const K    = 0.01;   // 非常に浅い（挙動確認用）
 
-// ---- Heightfield データ ----
+// ---------- 物理（Heightfield） ----------
 const heights = [];
 for (let i = 0; i < DIV; i++) {
   heights.push([]);
   for (let j = 0; j < DIV; j++) {
     const u = (i / (DIV - 1)) * 2 - 1;
     const v = (j / (DIV - 1)) * 2 - 1;
-    heights[i][j] = -K * (u*u + v*v);
+    heights[i][j] = -K * (u * u + v * v);
   }
 }
 
-const groundShape = new CANNON.Heightfield(heights, {
+const hfShape = new CANNON.Heightfield(heights, {
   elementSize: SIZE / (DIV - 1)
 });
 
-const groundBody = new CANNON.Body({ mass: 0 });
-groundBody.addShape(groundShape);
+const hfBody = new CANNON.Body({ mass: 0 });
+hfBody.addShape(hfShape);
+hfBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+hfBody.position.set(-SIZE / 2, 0, -SIZE / 2);
+world.addBody(hfBody);
 
-// ★★ 最重要：Heightfield を上向きに回転 ★★
-groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+// ---------- 安全用 無限平面（落下防止） ----------
+const safetyPlane = new CANNON.Body({ mass: 0 });
+safetyPlane.addShape(new CANNON.Plane());
+safetyPlane.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+safetyPlane.position.set(0, -2, 0);
+world.addBody(safetyPlane);
 
-// 位置補正
-groundBody.position.set(-SIZE/2, 0, -SIZE/2);
-world.addBody(groundBody);
-
-/* ---- 見た目（同じ数式） ---- */
-const geo = new THREE.PlaneGeometry(SIZE, SIZE, DIV-1, DIV-1);
-geo.rotateX(-Math.PI/2);
+// ---------- 見た目（色付き放物面） ----------
+const geo = new THREE.PlaneGeometry(SIZE, SIZE, DIV - 1, DIV - 1);
+geo.rotateX(-Math.PI / 2);
 
 const pos = geo.attributes.position;
+const colors = [];
+
 for (let i = 0; i < pos.count; i++) {
-  const x = pos.getX(i) / (SIZE/2);
-  const z = pos.getZ(i) / (SIZE/2);
-  pos.setY(i, -K * (x*x + z*z));
+  const x = pos.getX(i) / (SIZE / 2);
+  const z = pos.getZ(i) / (SIZE / 2);
+
+  const y = -K * (x * x + z * z);
+  pos.setY(i, y);
+
+  // 高さ → 色（中央:青 / 外周:黄）
+  const t = Math.max(0, Math.min(1, 1 + y / (K * 2)));
+  const r = t;
+  const g = t * 0.8;
+  const b = 1 - t;
+
+  colors.push(r, g, b);
 }
+
+geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
 geo.computeVertexNormals();
 
 const groundMesh = new THREE.Mesh(
   geo,
   new THREE.MeshStandardMaterial({
-    color: 0x444444,
-    wireframe: true,          // 確認用（後で false に）
+    vertexColors: true,
     side: THREE.DoubleSide
   })
 );
@@ -154,60 +136,43 @@ groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
 /* =====================================================
-   サイコロ（3個）
+   サイコロ（1個・確認用）
 ===================================================== */
 const DICE_SIZE = 0.6;
-const diceMeshes = [];
-const diceBodies = [];
 
-const materials = [
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(6) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })
-];
+const diceMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
+  new THREE.MeshStandardMaterial({ color: 0xffffff })
+);
+diceMesh.castShadow = true;
+scene.add(diceMesh);
 
-for (let i = 0; i < 3; i++) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
-    materials
-  );
-  mesh.castShadow = true;
-  scene.add(mesh);
-  diceMeshes.push(mesh);
-
-  const body = new CANNON.Body({
-    mass: 1,
-    shape: new CANNON.Box(
-      new CANNON.Vec3(DICE_SIZE/2, DICE_SIZE/2, DICE_SIZE/2)
-    ),
-    position: new CANNON.Vec3((i - 1) * 0.8, 2.5, 0)
-  });
-  world.addBody(body);
-  diceBodies.push(body);
-}
+const diceBody = new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Box(
+    new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)
+  ),
+  position: new CANNON.Vec3(0, 2.5, 0)
+});
+world.addBody(diceBody);
 
 /* =====================================================
    ボタン操作
 ===================================================== */
 document.getElementById("btn").onclick = () => {
-  diceBodies.forEach((body, i) => {
-    body.velocity.setZero();
-    body.angularVelocity.setZero();
-    body.position.set((i - 1) * 0.8, 2.5, 0);
-    body.quaternion.set(0,0,0,1);
+  diceBody.velocity.setZero();
+  diceBody.angularVelocity.setZero();
+  diceBody.position.set(0, 2.5, 0);
+  diceBody.quaternion.set(0, 0, 0, 1);
 
-    body.applyImpulse(
-      new CANNON.Vec3(
-        (Math.random() - 0.5) * 0.25,
-        0.8,
-        (Math.random() - 0.5) * 0.25
-      ),
-      body.position
-    );
-  });
+  diceBody.applyImpulse(
+    new CANNON.Vec3(
+      (Math.random() - 0.5) * 0.15,
+      0.6,
+      (Math.random() - 0.5) * 0.15
+    ),
+    diceBody.position
+  );
 };
 
 /* =====================================================
@@ -216,12 +181,10 @@ document.getElementById("btn").onclick = () => {
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  world.step(1/60, clock.getDelta());
+  world.step(1 / 60, clock.getDelta());
 
-  for (let i = 0; i < 3; i++) {
-    diceMeshes[i].position.copy(diceBodies[i].position);
-    diceMeshes[i].quaternion.copy(diceBodies[i].quaternion);
-  }
+  diceMesh.position.copy(diceBody.position);
+  diceMesh.quaternion.copy(diceBody.quaternion);
 
   renderer.render(scene, camera);
 }
