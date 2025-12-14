@@ -101,16 +101,16 @@ const world = new CANNON.World({
 /* =====================================================
    放物面床 y = -k(x^2 + z^2)
 ===================================================== */
-const SIZE = 20;     // 床の広さ
-const DIV  = 128;    // 分割数（滑らかさ）
-const K    = 0.25;   // 曲率（小さいほど浅い）
+const SIZE = 20;
+const DIV  = 128;
+const K    = 0.25;
 
-// ---- 物理（Heightfield） ----
+// ---- Heightfield データ ----
 const heights = [];
 for (let i = 0; i < DIV; i++) {
   heights.push([]);
   for (let j = 0; j < DIV; j++) {
-    const u = (i / (DIV - 1)) * 2 - 1; // [-1,1]
+    const u = (i / (DIV - 1)) * 2 - 1;
     const v = (j / (DIV - 1)) * 2 - 1;
     heights[i][j] = -K * (u*u + v*v);
   }
@@ -122,10 +122,15 @@ const groundShape = new CANNON.Heightfield(heights, {
 
 const groundBody = new CANNON.Body({ mass: 0 });
 groundBody.addShape(groundShape);
+
+// ★★ 最重要：Heightfield を上向きに回転 ★★
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+
+// 位置補正
 groundBody.position.set(-SIZE/2, 0, -SIZE/2);
 world.addBody(groundBody);
 
-// ---- 見た目（同じ数式） ----
+/* ---- 見た目（同じ数式） ---- */
 const geo = new THREE.PlaneGeometry(SIZE, SIZE, DIV-1, DIV-1);
 geo.rotateX(-Math.PI/2);
 
@@ -141,8 +146,8 @@ const groundMesh = new THREE.Mesh(
   geo,
   new THREE.MeshStandardMaterial({
     color: 0x444444,
-    wireframe: true,
-    side: THREE.DoubleSide   // ★ 追加
+    wireframe: true,          // 確認用（後で false に）
+    side: THREE.DoubleSide
   })
 );
 groundMesh.receiveShadow = true;
@@ -156,12 +161,12 @@ const diceMeshes = [];
 const diceBodies = [];
 
 const materials = [
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }), // +X
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }), // -X
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }), // +Y
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(6) }), // -Y
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }), // +Z
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })  // -Z
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(6) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })
 ];
 
 for (let i = 0; i < 3; i++) {
@@ -185,13 +190,13 @@ for (let i = 0; i < 3; i++) {
 }
 
 /* =====================================================
-   ボタン操作（超弱い力）
+   ボタン操作
 ===================================================== */
 document.getElementById("btn").onclick = () => {
   diceBodies.forEach((body, i) => {
     body.velocity.setZero();
     body.angularVelocity.setZero();
-    body.position.set((i - 1) * 0.8, 1.2, 0);
+    body.position.set((i - 1) * 0.8, 2.5, 0);
     body.quaternion.set(0,0,0,1);
 
     body.applyImpulse(
