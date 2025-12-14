@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bowl on Floor</title>
+<title>Bowl on Floor (Visible)</title>
 
 <style>
   body {
@@ -24,8 +24,8 @@ scene.background = new THREE.Color(0x222222);
 
 /* ===== カメラ ===== */
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 6, 10);
-camera.lookAt(0, 0, 0);
+camera.position.set(0, 7, 10);      // ★ 少し高く
+camera.lookAt(0, 1, 0);
 
 /* ===== レンダラ ===== */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -33,7 +33,7 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 /* ===== ライト ===== */
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const light = new THREE.DirectionalLight(0xffffff, 1.0);
 light.position.set(5, 10, 5);
 scene.add(light);
@@ -52,35 +52,45 @@ floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 /* =====================================================
-   お椀（半球・内側が見える）
+   お椀（半球・確実に見える）
 ===================================================== */
 const RADIUS = 4;
 
-// 下半分だけの球
+// 下半分の半球（お椀）
 const bowlGeometry = new THREE.SphereGeometry(
   RADIUS,
   64,
   64,
   0,
   Math.PI * 2,
-  Math.PI / 2,
+  Math.PI / 2,      // 下半分
   Math.PI / 2
 );
 
-// 内側を表示するため反転
+// 内側を見せる
 bowlGeometry.scale(-1, 1, 1);
 
 const bowl = new THREE.Mesh(
   bowlGeometry,
   new THREE.MeshStandardMaterial({
-    color: 0x886633,
+    color: 0x996633,          // ★ 床と色を変える
     side: THREE.BackSide
   })
 );
 
-// 床の上に置く
-bowl.position.y = 0;
+// ★ 床より少し上に持ち上げる（最重要）
+bowl.position.y = 0.01;
+
 scene.add(bowl);
+
+/* ===== デバッグ用：縁を強調 ===== */
+const rim = new THREE.Mesh(
+  new THREE.TorusGeometry(RADIUS, 0.05, 16, 100),
+  new THREE.MeshStandardMaterial({ color: 0xff0000 })
+);
+rim.rotation.x = Math.PI / 2;
+rim.position.y = 0.01;
+scene.add(rim);
 
 /* ===== ループ ===== */
 function animate() {
@@ -89,7 +99,7 @@ function animate() {
 }
 animate();
 
-/* ===== リサイズ対応 ===== */
+/* ===== リサイズ ===== */
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
