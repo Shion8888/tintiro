@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Extreme Bowl Visibility</title>
+<title>Bowl + Dice (Display Only)</title>
 
 <style>
   body {
@@ -18,22 +18,31 @@
 <script type="module">
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-/* ===== シーン ===== */
+/* =====================================================
+   シーン
+===================================================== */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-/* ===== カメラ（かなり上・かなり斜め） ===== */
+/* =====================================================
+   カメラ（斜め上から・底が見える）
+===================================================== */
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(6, 10, 6);      // ★ 大きく上
-camera.lookAt(0, 1, 0);             // ★ 底方向を見る
+camera.position.set(6, 8, 8);
+camera.lookAt(0, 2, 0);
 
-/* ===== レンダラ ===== */
+/* =====================================================
+   レンダラ
+===================================================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-/* ===== ライト ===== */
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+/* =====================================================
+   ライト
+===================================================== */
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
 const light = new THREE.DirectionalLight(0xffffff, 1.2);
 light.position.set(5, 10, 5);
 scene.add(light);
@@ -42,7 +51,7 @@ scene.add(light);
    床（平面）
 ===================================================== */
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(40, 40),
+  new THREE.PlaneGeometry(30, 30),
   new THREE.MeshStandardMaterial({
     color: 0x555555,
     side: THREE.DoubleSide
@@ -52,11 +61,11 @@ floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 /* =====================================================
-   お椀（超誇張・必ず見える）
+   お椀（内側が正しく見える）
 ===================================================== */
-const RADIUS = 2.5;
+const RADIUS = 3;
 
-// 下半分の半球
+// 下半分の半球（お椀）
 const bowlGeometry = new THREE.SphereGeometry(
   RADIUS,
   64,
@@ -67,40 +76,59 @@ const bowlGeometry = new THREE.SphereGeometry(
   Math.PI / 2
 );
 
-// 内側を表示
-bowlGeometry.scale(-1, 1, 1);
+// 内側を向くように法線反転
+bowlGeometry.scale(1, -1, 1);
+bowlGeometry.computeVertexNormals();
 
 const bowl = new THREE.Mesh(
   bowlGeometry,
   new THREE.MeshStandardMaterial({
     color: 0x8b5a2b,
-    side: THREE.BackSide
+    side: THREE.FrontSide
   })
 );
 
-// ★ 床から大きく持ち上げる
-bowl.position.y = RADIUS * 1.6;   // ← ここが決定打
+// 床より十分上に配置
+bowl.position.y = RADIUS * 1.6;
 scene.add(bowl);
 
 /* =====================================================
-   縁（同じ高さ）
+   縁（分かりやすさ用）
 ===================================================== */
 const rim = new THREE.Mesh(
-  new THREE.TorusGeometry(RADIUS, 0.1, 16, 100),
+  new THREE.TorusGeometry(RADIUS, 0.12, 16, 100),
   new THREE.MeshStandardMaterial({ color: 0xff0000 })
 );
 rim.rotation.x = Math.PI / 2;
 rim.position.y = RADIUS * 1.6;
 scene.add(rim);
 
-/* ===== ループ ===== */
+/* =====================================================
+   サイコロ（表示のみ）
+===================================================== */
+const DICE_SIZE = 0.8;
+
+const dice = new THREE.Mesh(
+  new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
+  new THREE.MeshStandardMaterial({ color: 0xffffff })
+);
+
+// お椀の底付近に配置
+dice.position.set(0, RADIUS * 1.6 - RADIUS + DICE_SIZE / 2 + 0.1, 0);
+scene.add(dice);
+
+/* =====================================================
+   ループ
+===================================================== */
 function animate() {
   requestAnimationFrame(animate);
   renderer.render(scene, camera);
 }
 animate();
 
-/* ===== リサイズ ===== */
+/* =====================================================
+   リサイズ対応
+===================================================== */
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
