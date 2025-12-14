@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>3D Dice Bowl</title>
+<title>Dice Bowl (Concave)</title>
 
 <style>
   body {
@@ -42,8 +42,8 @@ function createDiceTexture(n) {
 
   ctx.fillStyle = "#fff";
   ctx.fillRect(0,0,256,256);
-
   ctx.fillStyle = "#000";
+
   const r = 18;
   const p = {
     tl:[64,64], tr:[192,64],
@@ -71,9 +71,9 @@ function createDiceTexture(n) {
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 50);
 camera.position.set(0, 4, 7);
-camera.lookAt(0, 1, 0);
+camera.lookAt(0, 0.6, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
@@ -91,39 +91,56 @@ const world = new CANNON.World({
   gravity: new CANNON.Vec3(0, -9.82, 0)
 });
 
-/* ========= どんぶり（曲面床） ========= */
-const BOWL_RADIUS = 5;
+/* ========= 凹面床（Heightfield） ========= */
+const SIZE = 40;
+const DIV = 64;
+const HEIGHT_SCALE = 0.03;
 
-// 見た目（内側が見えるよう反転）
-const bowlGeo = new THREE.SphereGeometry(
-  BOWL_RADIUS, 64, 64, 0, Math.PI * 2, 0, Math.PI / 2
-);
-bowlGeo.scale(-1, 1, 1); // ★ 内側を表に
-const bowlMesh = new THREE.Mesh(
-  bowlGeo,
-  new THREE.MeshStandardMaterial({
-    color: 0x444444,
-    side: THREE.BackSide
-  })
-);
-bowlMesh.position.y = 0;
-bowlMesh.receiveShadow = true;
-scene.add(bowlMesh);
+// 高さデータ作成（パラボラ）
+const heights = [];
+for (let i = 0; i < DIV; i++) {
+  heights.push([]);
+  for (let j = 0; j < DIV; j++) {
+    const x = (i / (DIV - 1) - 0.5) * 2;
+    const z = (j / (DIV - 1) - 0.5) * 2;
+    heights[i][j] = -HEIGHT_SCALE * (x*x + z*z);
+  }
+}
 
-// 物理（同じ球）
-const bowlBody = new CANNON.Body({
-  mass: 0,
-  shape: new CANNON.Sphere(BOWL_RADIUS),
-  position: new CANNON.Vec3(0, 0, 0)
+const groundShape = new CANNON.Heightfield(heights, {
+  elementSize: SIZE / (DIV - 1)
 });
-world.addBody(bowlBody);
+
+const groundBody = new CANNON.Body({ mass: 0 });
+groundBody.addShape(groundShape);
+groundBody.position.set(-SIZE/2, 0, -SIZE/2);
+world.addBody(groundBody);
+
+// 見た目
+const geo = new THREE.PlaneGeometry(SIZE, SIZE, DIV-1, DIV-1);
+geo.rotateX(-Math.PI/2);
+
+const pos = geo.attributes.position;
+for (let i = 0; i < pos.count; i++) {
+  const x = pos.getX(i) / (SIZE/2);
+  const z = pos.getZ(i) / (SIZE/2);
+  pos.setY(i, -HEIGHT_SCALE * (x*x + z*z));
+}
+geo.computeVertexNormals();
+
+const groundMesh = new THREE.Mesh(
+  geo,
+  new THREE.MeshStandardMaterial({ color: 0x444444 })
+);
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
 
 /* ========= サイコロ ========= */
-const SIZE = 0.6;
+const DICE = 0.6;
 const diceMeshes = [];
 const diceBodies = [];
 
-const faceMaterials = [
+const materials = [
   new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }),
@@ -134,8 +151,8 @@ const faceMaterials = [
 
 for (let i = 0; i < 3; i++) {
   const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(SIZE, SIZE, SIZE),
-    faceMaterials
+    new THREE.BoxGeometry(DICE, DICE, DICE),
+    materials
   );
   mesh.castShadow = true;
   scene.add(mesh);
@@ -143,8 +160,8 @@ for (let i = 0; i < 3; i++) {
 
   const body = new CANNON.Body({
     mass: 1,
-    shape: new CANNON.Box(new CANNON.Vec3(SIZE/2, SIZE/2, SIZE/2)),
-    position: new CANNON.Vec3((i - 1) * 0.9, 2.2, 0)
+    shape: new CANNON.Box(new CANNON.Vec3(DICE/2, DICE/2, DICE/2)),
+    position: new CANNON.Vec3((i - 1) * 0.8, 1.5, 0)
   });
   world.addBody(body);
   diceBodies.push(body);
@@ -155,14 +172,14 @@ document.getElementById("btn").onclick = () => {
   diceBodies.forEach((body, i) => {
     body.velocity.setZero();
     body.angularVelocity.setZero();
-    body.position.set((i - 1) * 0.9, 2.2, 0);
+    body.position.set((i - 1) * 0.8, 1.5, 0);
     body.quaternion.set(0,0,0,1);
 
     body.applyImpulse(
       new CANNON.Vec3(
-        (Math.random() - 0.5) * 0.4,
-        1.0,
-        (Math.random() - 0.5) * 0.4
+        (Math.random() - 0.5) * 0.3,
+        0.9,
+        (Math.random() - 0.5) * 0.3
       ),
       body.position
     );
