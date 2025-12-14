@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>3D Dice</title>
+<title>3D Dice x3</title>
 
 <style>
   body {
@@ -34,7 +34,7 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
-/* ========= サイコロ目テクスチャ生成 ========= */
+/* ========= サイコロ目テクスチャ ========= */
 function createDiceTexture(n) {
   const c = document.createElement("canvas");
   c.width = c.height = 256;
@@ -62,7 +62,7 @@ function createDiceTexture(n) {
 
   map[n].forEach(k => {
     ctx.beginPath();
-    ctx.arc(...p[k], r, 0, Math.PI*2);
+    ctx.arc(...p[k], r, 0, Math.PI * 2);
     ctx.fill();
   });
 
@@ -82,23 +82,19 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-// light
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const light = new THREE.DirectionalLight(0xffffff, 1);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const light = new THREE.DirectionalLight(0xffffff, 0.9);
 light.position.set(5, 10, 5);
 light.castShadow = true;
 scene.add(light);
 
-/* ========= Cannon-es ========= */
+/* ========= Cannon ========= */
 const world = new CANNON.World({
   gravity: new CANNON.Vec3(0, -9.82, 0)
 });
 
 // 床
-const groundBody = new CANNON.Body({
-  mass: 0,
-  shape: new CANNON.Plane()
-});
+const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
 groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
 world.addBody(groundBody);
 
@@ -110,11 +106,12 @@ groundMesh.rotation.x = -Math.PI/2;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-/* ========= サイコロ ========= */
+/* ========= サイコロ設定 ========= */
 const SIZE = 0.6;
+const diceMeshes = [];
+const diceBodies = [];
 
-// 出目の向き（重要）
-const materials = [
+const faceMaterials = [
   new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }), // +X
   new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }), // -X
   new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }), // +Y
@@ -123,37 +120,44 @@ const materials = [
   new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })  // -Z
 ];
 
-// 描画
-const diceMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(SIZE, SIZE, SIZE),
-  materials
-);
-diceMesh.castShadow = true;
-scene.add(diceMesh);
+for (let i = 0; i < 3; i++) {
+  // 描画
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(SIZE, SIZE, SIZE),
+    faceMaterials
+  );
+  mesh.castShadow = true;
+  scene.add(mesh);
+  diceMeshes.push(mesh);
 
-// 物理
-const diceBody = new CANNON.Body({
-  mass: 1,
-  shape: new CANNON.Box(new CANNON.Vec3(SIZE/2, SIZE/2, SIZE/2)),
-  position: new CANNON.Vec3(0, 2, 0)
-});
-world.addBody(diceBody);
+  // 物理
+  const body = new CANNON.Body({
+    mass: 1,
+    shape: new CANNON.Box(new CANNON.Vec3(SIZE/2, SIZE/2, SIZE/2)),
+    position: new CANNON.Vec3((i - 1) * 0.9, 1.8, 0)
+  });
+  world.addBody(body);
+  diceBodies.push(body);
+}
 
 /* ========= ボタン ========= */
 document.getElementById("btn").onclick = () => {
-  diceBody.velocity.setZero();
-  diceBody.angularVelocity.setZero();
-  diceBody.position.set(0, 2, 0);
-  diceBody.quaternion.set(0,0,0,1);
+  diceBodies.forEach((body, i) => {
+    body.velocity.setZero();
+    body.angularVelocity.setZero();
+    body.position.set((i - 1) * 0.9, 1.8, 0);
+    body.quaternion.set(0,0,0,1);
 
-  diceBody.applyImpulse(
-    new CANNON.Vec3(
-      (Math.random() - 0.5) * 3,
-      3.5,
-      (Math.random() - 0.5) * 3
-    ),
-    diceBody.position
-  );
+    // ★ 超弱い力
+    body.applyImpulse(
+      new CANNON.Vec3(
+        (Math.random() - 0.5) * 0.6,
+        1.2,
+        (Math.random() - 0.5) * 0.6
+      ),
+      body.position
+    );
+  });
 };
 
 /* ========= ループ ========= */
@@ -161,11 +165,12 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-
   world.step(1/60, clock.getDelta());
 
-  diceMesh.position.copy(diceBody.position);
-  diceMesh.quaternion.copy(diceBody.quaternion);
+  for (let i = 0; i < 3; i++) {
+    diceMeshes[i].position.copy(diceBodies[i].position);
+    diceMeshes[i].quaternion.copy(diceBodies[i].quaternion);
+  }
 
   renderer.render(scene, camera);
 }
