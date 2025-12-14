@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>チンチロ</title>
+<title>　</title>
 
 <style>
 body {
@@ -33,8 +33,8 @@ h1 {
 /* ===== ステージ ===== */
 .stage {
   position: relative;
-  height: 360px;
-  margin: 20px 0;
+  height: 440px;
+  margin: 30px 0;
 }
 
 /* どんぶり画像 */
@@ -43,7 +43,7 @@ h1 {
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 320px;
+  width: 380px;
   z-index: 3;        /* 縁は最前面 */
   pointer-events: none;
 }
@@ -81,7 +81,7 @@ h1 {
 /* 落下 → 縁の裏 → 中 */
 @keyframes throwIntoBowl {
   0% {
-    top: -120px;
+    top: -140px;
     opacity: 0;
     transform: rotate(0deg);
   }
@@ -89,11 +89,11 @@ h1 {
     opacity: 1;
   }
   65% {
-    top: 210px;          /* 縁あたり */
+    top: 240px;          /* 縁あたり */
     transform: rotate(240deg);
   }
   100% {
-    top: 240px;          /* 中に入る */
+    top: 300px;          /* どんぶりの中 */
     transform: rotate(360deg) scale(0.95);
   }
 }
