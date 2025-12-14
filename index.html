@@ -7,83 +7,106 @@
 <title>チンチロ</title>
 
 <style>
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #111;
-    color: #fff;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-  }
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #111;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
 
-  .container {
-    width: 100%;
-    max-width: 420px;
-    padding: 20px;
-    text-align: center;
-  }
+.container {
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  text-align: center;
+}
 
-  h1 {
-    margin-bottom: 10px;
-    font-size: 2rem;
-  }
+h1 {
+  margin-bottom: 10px;
+  font-size: 2rem;
+}
 
-  /* どんぶり */
-  .bowl {
-    font-size: 5rem;
-    margin: 10px 0;
-  }
+/* どんぶりエリア */
+.bowl-area {
+  position: relative;
+  height: 220px;
+  margin: 10px 0;
+}
 
-  /* サイコロ */
-  .dice-area {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    font-size: 3rem;
-    margin: 10px 0;
-    height: 3.5rem;
-  }
+.bowl {
+  font-size: 5rem;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
 
-  .dice {
-    display: inline-block;
-    animation: drop 0.4s ease-out;
-  }
+/* サイコロ */
+.dice {
+  position: absolute;
+  top: -60px;
+  font-size: 3rem;
+  opacity: 0;
+}
 
-  @keyframes drop {
-    from {
-      transform: translateY(-40px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
+/* 落下 */
+.drop {
+  animation: dropDice 0.6s ease-out forwards;
+}
 
-  .result {
-    font-size: 1.3rem;
-    margin: 10px 0;
-    min-height: 2em;
-  }
+/* 中でガタガタ */
+.shake {
+  animation: shake 0.4s ease-in-out;
+}
 
-  button {
-    width: 100%;
-    font-size: 1.4rem;
-    padding: 15px;
-    border: none;
-    border-radius: 10px;
-    background: #ffcc00;
-    color: #000;
-    font-weight: bold;
-    cursor: pointer;
+@keyframes dropDice {
+  0% {
+    top: -60px;
+    opacity: 0;
   }
+  70% {
+    top: 130px;
+    opacity: 1;
+  }
+  100% {
+    top: 110px;
+  }
+}
 
-  button:active {
-    transform: scale(0.97);
-  }
+@keyframes shake {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-50%) rotate(5deg); }
+  50% { transform: translateX(-50%) rotate(-5deg); }
+  75% { transform: translateX(-50%) rotate(3deg); }
+  100% { transform: translateX(-50%) rotate(0deg); }
+}
+
+.result {
+  font-size: 1.3rem;
+  margin: 10px 0;
+  min-height: 2em;
+}
+
+button {
+  width: 100%;
+  font-size: 1.4rem;
+  padding: 15px;
+  border: none;
+  border-radius: 10px;
+  background: #ffcc00;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(0.97);
+}
 </style>
 </head>
 
@@ -91,12 +114,11 @@
 <div class="container">
   <h1>🎲 チンチロ</h1>
 
-  <div class="bowl">🥣</div>
-
-  <div class="dice-area" id="dice">
-    <span class="dice">🎲</span>
-    <span class="dice">🎲</span>
-    <span class="dice">🎲</span>
+  <div class="bowl-area" id="bowlArea">
+    <div class="dice" id="d1">🎲</div>
+    <div class="dice" id="d2">🎲</div>
+    <div class="dice" id="d3">🎲</div>
+    <div class="bowl">🥣</div>
   </div>
 
   <div class="result" id="result"></div>
@@ -115,38 +137,42 @@ function roll() {
   if (rolling) return;
   rolling = true;
 
-  const diceArea = document.getElementById("dice");
   const resultArea = document.getElementById("result");
   resultArea.textContent = "";
 
-  let count = 0;
-  let d1, d2, d3;
+  const dices = [
+    document.getElementById("d1"),
+    document.getElementById("d2"),
+    document.getElementById("d3")
+  ];
 
-  const interval = setInterval(() => {
-    d1 = rand();
-    d2 = rand();
-    d3 = rand();
+  const values = dices.map(() => rand());
 
-    diceArea.innerHTML = `
-      <span class="dice">${d1}</span>
-      <span class="dice">${d2}</span>
-      <span class="dice">${d3}</span>
-    `;
+  dices.forEach((d, i) => {
+    d.textContent = values[i];
+    d.className = "dice";
+    d.style.left = `${120 + i * 40}px`;
+    void d.offsetWidth; // 再描画
+    d.classList.add("drop");
+  });
 
-    count++;
-    if (count >= 8) {
-      clearInterval(interval);
-      rolling = false;
-      judge(d1, d2, d3);
-    }
-  }, 120);
+  // 落下後に中で揺れる
+  setTimeout(() => {
+    document.querySelector(".bowl").classList.add("shake");
+  }, 650);
+
+  // 結果判定
+  setTimeout(() => {
+    document.querySelector(".bowl").classList.remove("shake");
+    rolling = false;
+    judge(values[0], values[1], values[2]);
+  }, 1000);
 }
 
 function judge(a, b, c) {
   const resultArea = document.getElementById("result");
   const dice = [a, b, c].sort();
 
-  // ゾロ目
   if (a === b && b === c) {
     if (a === 1) {
       resultArea.textContent = "🎉 ピンゾロ（最強）";
@@ -156,26 +182,22 @@ function judge(a, b, c) {
     return;
   }
 
-  // ヒフミ
   if (dice[0] === 1 && dice[1] === 2 && dice[2] === 3) {
     resultArea.textContent = "💀 ヒフミ（負け）";
     return;
   }
 
-  // シゴロ
   if (dice[0] === 4 && dice[1] === 5 && dice[2] === 6) {
     resultArea.textContent = "🔥 シゴロ（勝ち）";
     return;
   }
 
-  // 役あり（目）
   if (a === b || b === c || a === c) {
     const pair = a === b ? c : a === c ? b : a;
     resultArea.textContent = `👉 役あり：${pair}`;
     return;
   }
 
-  // 役なし
   resultArea.textContent = "😐 役なし";
 }
 </script>
