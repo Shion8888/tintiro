@@ -34,6 +34,41 @@
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
+/* ========= サイコロ目テクスチャ生成 ========= */
+function createDiceTexture(n) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0,0,256,256);
+
+  ctx.fillStyle = "#000";
+  const r = 18;
+  const p = {
+    tl:[64,64], tc:[128,64], tr:[192,64],
+    ml:[64,128], mc:[128,128], mr:[192,128],
+    bl:[64,192], bc:[128,192], br:[192,192]
+  };
+
+  const map = {
+    1:["mc"],
+    2:["tl","br"],
+    3:["tl","mc","br"],
+    4:["tl","tr","bl","br"],
+    5:["tl","tr","mc","bl","br"],
+    6:["tl","ml","bl","tr","mr","br"]
+  };
+
+  map[n].forEach(k => {
+    ctx.beginPath();
+    ctx.arc(...p[k], r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  return new THREE.CanvasTexture(c);
+}
+
 /* ========= Three.js ========= */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
@@ -59,7 +94,7 @@ const world = new CANNON.World({
   gravity: new CANNON.Vec3(0, -9.82, 0)
 });
 
-// 床（物理）
+// 床
 const groundBody = new CANNON.Body({
   mass: 0,
   shape: new CANNON.Plane()
@@ -67,7 +102,6 @@ const groundBody = new CANNON.Body({
 groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
 world.addBody(groundBody);
 
-// 床（描画）
 const groundMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(8, 8),
   new THREE.MeshStandardMaterial({ color: 0x444444 })
@@ -76,36 +110,42 @@ groundMesh.rotation.x = -Math.PI/2;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-// ===== サイコロサイズ =====
-const DICE_SIZE = 0.6;
+/* ========= サイコロ ========= */
+const SIZE = 0.6;
 
-// サイコロ（物理）
-const diceBody = new CANNON.Body({
-  mass: 1,
-  shape: new CANNON.Box(
-    new CANNON.Vec3(DICE_SIZE/2, DICE_SIZE/2, DICE_SIZE/2)
-  ),
-  position: new CANNON.Vec3(0, 2, 0)
-});
-world.addBody(diceBody);
+// 出目の向き（重要）
+const materials = [
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }), // +X
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }), // -X
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }), // +Y
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(6) }), // -Y
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }), // +Z
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })  // -Z
+];
 
-// サイコロ（描画）
+// 描画
 const diceMesh = new THREE.Mesh(
-  new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
-  new THREE.MeshStandardMaterial({ color: 0xffffff })
+  new THREE.BoxGeometry(SIZE, SIZE, SIZE),
+  materials
 );
 diceMesh.castShadow = true;
 scene.add(diceMesh);
 
-/* ========= ボタンで転がす ========= */
+// 物理
+const diceBody = new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Box(new CANNON.Vec3(SIZE/2, SIZE/2, SIZE/2)),
+  position: new CANNON.Vec3(0, 2, 0)
+});
+world.addBody(diceBody);
+
+/* ========= ボタン ========= */
 document.getElementById("btn").onclick = () => {
-  // リセット
   diceBody.velocity.setZero();
   diceBody.angularVelocity.setZero();
   diceBody.position.set(0, 2, 0);
   diceBody.quaternion.set(0,0,0,1);
 
-  // 弱めの力で転がす（画面外防止）
   diceBody.applyImpulse(
     new CANNON.Vec3(
       (Math.random() - 0.5) * 3,
