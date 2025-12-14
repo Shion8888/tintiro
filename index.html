@@ -227,6 +227,7 @@ function dropDice(dices, bowl) {
   dices.forEach((d, i) => {
     d.className = "dice drop";
     renderDie(d, values[i]);
+    d.style.transform = "rotate(0deg)";
   });
 
   // どんぶり揺れ
@@ -234,13 +235,21 @@ function dropDice(dices, bowl) {
     bowl.classList.add("shake");
   }, 600);
 
-  // 判定
+  // 確定（サイコロのまま止める）
   setTimeout(() => {
     bowl.classList.remove("shake");
+
+    dices.forEach((d, i) => {
+      d.className = "dice";      // アニメ完全解除
+      renderDie(d, values[i]);  // pip確定
+      d.style.transform = "rotate(0deg)";
+    });
+
     rolling = false;
     judge(values[0], values[1], values[2]);
   }, 1000);
 }
+
 
 function judge(a, b, c) {
   const result = document.getElementById("result");
