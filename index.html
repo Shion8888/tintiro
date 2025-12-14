@@ -3,16 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>チンチロ</title>
 
 <style>
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   background: #111;
   color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -32,50 +31,62 @@ h1 {
 }
 
 /* どんぶりエリア */
-.bowl-area {
+.stage {
   position: relative;
-  height: 220px;
+  height: 260px;
   margin: 10px 0;
 }
 
 .bowl {
-  font-size: 5rem;
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
+  font-size: 6rem;
+  z-index: 3;
 }
 
 /* サイコロ */
 .dice {
   position: absolute;
-  top: -60px;
+  top: -80px;
   font-size: 3rem;
   opacity: 0;
+  z-index: 2;
 }
 
 /* 落下 */
 .drop {
-  animation: dropDice 0.6s ease-out forwards;
+  animation: drop 0.6s ease-out forwards;
 }
 
-/* 中でガタガタ */
+/* 転がり */
+.roll {
+  animation: roll 0.4s linear infinite;
+}
+
+/* どんぶり揺れ */
 .shake {
   animation: shake 0.4s ease-in-out;
 }
 
-@keyframes dropDice {
+@keyframes drop {
   0% {
-    top: -60px;
+    top: -80px;
     opacity: 0;
   }
   70% {
-    top: 130px;
+    top: 150px;
     opacity: 1;
   }
   100% {
-    top: 110px;
+    top: 130px;
   }
+}
+
+@keyframes roll {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @keyframes shake {
@@ -88,14 +99,14 @@ h1 {
 
 .result {
   font-size: 1.3rem;
-  margin: 10px 0;
   min-height: 2em;
+  margin: 10px 0;
 }
 
 button {
   width: 100%;
-  font-size: 1.4rem;
   padding: 15px;
+  font-size: 1.4rem;
   border: none;
   border-radius: 10px;
   background: #ffcc00;
@@ -114,11 +125,11 @@ button:active {
 <div class="container">
   <h1>🎲 チンチロ</h1>
 
-  <div class="bowl-area" id="bowlArea">
+  <div class="stage">
     <div class="dice" id="d1">🎲</div>
     <div class="dice" id="d2">🎲</div>
     <div class="dice" id="d3">🎲</div>
-    <div class="bowl">🥣</div>
+    <div class="bowl" id="bowl">🥣</div>
   </div>
 
   <div class="result" id="result"></div>
@@ -127,23 +138,19 @@ button:active {
 </div>
 
 <script>
-const diceFaces = ["⚀","⚁","⚂","⚃","⚄","⚅"];
 let rolling = false;
 
 function rand() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
-function faceFor(value) {
-  return diceFaces[value - 1] || "🎲";
-}
-
 function roll() {
   if (rolling) return;
   rolling = true;
 
-  const resultArea = document.getElementById("result");
-  resultArea.textContent = "";
+  const result = document.getElementById("result");
+  const bowl = document.getElementById("bowl");
+  result.textContent = "";
 
   const dices = [
     document.getElementById("d1"),
@@ -151,59 +158,77 @@ function roll() {
     document.getElementById("d3")
   ];
 
+  // 初期配置
+  dices.forEach((d, i) => {
+    d.className = "dice roll";
+    d.style.left = `${110 + i * 50}px`;
+    d.style.opacity = 1;
+    d.textContent = "🎲";
+  });
+
+  // 転がり中はランダム表示（rinblog風）
+  let rollingCount = 0;
+  const rollInterval = setInterval(() => {
+    dices.forEach(d => d.textContent = rand());
+    rollingCount++;
+    if (rollingCount > 8) {
+      clearInterval(rollInterval);
+      dropDice(dices, bowl);
+    }
+  }, 100);
+}
+
+function dropDice(dices, bowl) {
   const values = dices.map(() => rand());
 
   dices.forEach((d, i) => {
-    d.textContent = faceFor(values[i]);
-    d.className = "dice";
-    d.style.left = `${120 + i * 40}px`;
-    void d.offsetWidth; // 再描画
-    d.classList.add("drop");
+    d.className = "dice drop";
+    d.textContent = values[i];
   });
 
-  // 落下後に中で揺れる
+  // どんぶり揺れ
   setTimeout(() => {
-    document.querySelector(".bowl").classList.add("shake");
-  }, 650);
+    bowl.classList.add("shake");
+  }, 600);
 
-  // 結果判定
+  // 判定
   setTimeout(() => {
-    document.querySelector(".bowl").classList.remove("shake");
+    bowl.classList.remove("shake");
     rolling = false;
     judge(values[0], values[1], values[2]);
   }, 1000);
 }
 
 function judge(a, b, c) {
-  const resultArea = document.getElementById("result");
+  const result = document.getElementById("result");
   const dice = [a, b, c].sort();
 
   if (a === b && b === c) {
     if (a === 1) {
-      resultArea.textContent = `🎉 ピンゾロ（最強） ${faceFor(a)}${faceFor(b)}${faceFor(c)}`;
+      result.textContent = "🎉 ピンゾロ（最強）";
     } else {
-      resultArea.textContent = `⚡ アラシ ${faceFor(a)}${faceFor(b)}${faceFor(c)}`;
+      result.textContent = "⚡ アラシ";
     }
     return;
   }
 
   if (dice[0] === 1 && dice[1] === 2 && dice[2] === 3) {
-    resultArea.textContent = "💀 ヒフミ（負け）";
+    result.textContent = "💀 ヒフミ（負け）";
     return;
   }
 
   if (dice[0] === 4 && dice[1] === 5 && dice[2] === 6) {
-    resultArea.textContent = "🔥 シゴロ（勝ち）";
+    result.textContent = "🔥 シゴロ（勝ち）";
     return;
   }
 
   if (a === b || b === c || a === c) {
     const pair = a === b ? c : a === c ? b : a;
-    resultArea.textContent = `👉 役あり：${faceFor(pair)}`;
+    result.textContent = `👉 役あり：${pair}`;
     return;
   }
 
-  resultArea.textContent = "😐 役なし";
+  result.textContent = "😐 役なし";
 }
 </script>
 </body>
