@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Top View Bowl</title>
+<title>Chinchiro – Top View Roll</title>
 
 <style>
   body {
@@ -11,9 +11,24 @@
     overflow: hidden;
     background: #111;
   }
+  #rollBtn {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    font-size: 16px;
+    border-radius: 10px;
+    border: none;
+    background: #ffcc00;
+    font-weight: bold;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
+
+<button id="rollBtn">サイコロを転がす</button>
 
 <script type="module">
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
@@ -25,11 +40,11 @@ import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-// カメラ：真上（俯瞰）
+// 真上カメラ
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
 camera.position.set(0, 15, 0);
 camera.lookAt(0, 0, 0);
-camera.up.set(0, 0, -1); // 画面の向きを固定
+camera.up.set(0, 0, -1);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -69,9 +84,9 @@ world.addBody(floorBody);
    お椀（見た目のみ）
 ===================================================== */
 const RADIUS = 3;
-const BOWL_Y = RADIUS; // 床の上にちょうど置く
+const BOWL_Y = RADIUS;
 
-// 半球（内側が見える）
+// 半球（内側）
 const bowlGeo = new THREE.SphereGeometry(
   RADIUS,
   64,
@@ -101,7 +116,7 @@ rim.position.y = BOWL_Y;
 scene.add(rim);
 
 /* =====================================================
-   サイコロ（常にお椀の真ん中）
+   サイコロ
 ===================================================== */
 const DICE_SIZE = 0.4;
 
@@ -121,12 +136,37 @@ const diceBody = new CANNON.Body({
   )
 });
 
-// ★ 常にお椀の真ん中
+// 初期位置（中央）
 diceBody.position.set(0, BOWL_Y + 1.0, 0);
-diceBody.velocity.setZero();
-diceBody.angularVelocity.setZero();
-
 world.addBody(diceBody);
+
+/* =====================================================
+   転がす処理
+===================================================== */
+document.getElementById("rollBtn").onclick = () => {
+  // 中央に戻す
+  diceBody.position.set(0, BOWL_Y + 1.0, 0);
+  diceBody.velocity.setZero();
+  diceBody.angularVelocity.setZero();
+  diceBody.quaternion.set(0, 0, 0, 1);
+
+  // ★ 弱い横方向速度（円運動っぽく見せる）
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 2.0;
+
+  diceBody.velocity.set(
+    Math.cos(angle) * speed,
+    0,
+    Math.sin(angle) * speed
+  );
+
+  // ★ 回転も少し与える
+  diceBody.angularVelocity.set(
+    Math.random() * 5,
+    Math.random() * 5,
+    Math.random() * 5
+  );
+};
 
 /* =====================================================
    ループ
