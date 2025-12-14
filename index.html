@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bowl Clearly Visible</title>
+<title>Small Bowl – Angled Camera</title>
 
 <style>
   body {
@@ -22,10 +22,10 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-/* ===== カメラ（低く・前から） ===== */
+/* ===== カメラ（斜め・底が見える） ===== */
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 3, 8);     // ★ 低くする
-camera.lookAt(0, 1.2, 0);
+camera.position.set(5.5, 3.0, 6.5);   // ★ 横 + 少し上
+camera.lookAt(0, 0.8, 0);            // ★ お椀の底付近を見る
 
 /* ===== レンダラ ===== */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -35,11 +35,11 @@ document.body.appendChild(renderer.domElement);
 /* ===== ライト ===== */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const light = new THREE.DirectionalLight(0xffffff, 1.2);
-light.position.set(5, 10, 5);
+light.position.set(6, 10, 6);
 scene.add(light);
 
 /* =====================================================
-   床（完全な平面）
+   床（平面）
 ===================================================== */
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(30, 30),
@@ -52,9 +52,9 @@ floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 /* =====================================================
-   お椀（半球・床より十分上）
+   お椀（小さめ・底が見える）
 ===================================================== */
-const RADIUS = 4;
+const RADIUS = 2.5;   // ★ 小さく
 
 // 下半分の半球
 const bowlGeometry = new THREE.SphereGeometry(
@@ -67,31 +67,30 @@ const bowlGeometry = new THREE.SphereGeometry(
   Math.PI / 2
 );
 
-// 内側を見せる
+// 内側を表示
 bowlGeometry.scale(-1, 1, 1);
 
 const bowl = new THREE.Mesh(
   bowlGeometry,
   new THREE.MeshStandardMaterial({
-    color: 0x996633,
+    color: 0x8b5a2b,
     side: THREE.BackSide
   })
 );
 
-// ★ 床から明確に浮かせる（重要）
-bowl.position.y = 1.2;
-
+// ★ 床より少し上（底が見える位置）
+bowl.position.y = 0.9;
 scene.add(bowl);
 
 /* =====================================================
-   縁（位置も同じ高さに）
+   縁（リム）
 ===================================================== */
 const rim = new THREE.Mesh(
-  new THREE.TorusGeometry(RADIUS, 0.07, 16, 100),
+  new THREE.TorusGeometry(RADIUS, 0.08, 16, 100),
   new THREE.MeshStandardMaterial({ color: 0xff0000 })
 );
 rim.rotation.x = Math.PI / 2;
-rim.position.y = 1.2;
+rim.position.y = 0.9;
 scene.add(rim);
 
 /* ===== ループ ===== */
