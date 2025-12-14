@@ -127,10 +127,15 @@ button:active {
 </div>
 
 <script>
+const diceFaces = ["⚀","⚁","⚂","⚃","⚄","⚅"];
 let rolling = false;
 
 function rand() {
   return Math.floor(Math.random() * 6) + 1;
+}
+
+function faceFor(value) {
+  return diceFaces[value - 1] || "🎲";
 }
 
 function roll() {
@@ -149,7 +154,7 @@ function roll() {
   const values = dices.map(() => rand());
 
   dices.forEach((d, i) => {
-    d.textContent = values[i];
+    d.textContent = faceFor(values[i]);
     d.className = "dice";
     d.style.left = `${120 + i * 40}px`;
     void d.offsetWidth; // 再描画
@@ -175,9 +180,9 @@ function judge(a, b, c) {
 
   if (a === b && b === c) {
     if (a === 1) {
-      resultArea.textContent = "🎉 ピンゾロ（最強）";
+      resultArea.textContent = `🎉 ピンゾロ（最強） ${faceFor(a)}${faceFor(b)}${faceFor(c)}`;
     } else {
-      resultArea.textContent = "⚡ アラシ";
+      resultArea.textContent = `⚡ アラシ ${faceFor(a)}${faceFor(b)}${faceFor(c)}`;
     }
     return;
   }
@@ -194,7 +199,7 @@ function judge(a, b, c) {
 
   if (a === b || b === c || a === c) {
     const pair = a === b ? c : a === c ? b : a;
-    resultArea.textContent = `👉 役あり：${pair}`;
+    resultArea.textContent = `👉 役あり：${faceFor(pair)}`;
     return;
   }
 
