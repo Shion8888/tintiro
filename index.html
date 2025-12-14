@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Big Roll</title>
+<title>Chinchiro – Natural Roll</title>
 
 <style>
   body {
@@ -81,11 +81,11 @@ function createDiceTexture(n) {
   return new THREE.CanvasTexture(c);
 }
 
-// 面の割当（+X,-X,+Y,-Y,+Z,-Z）
+// 面割当（確定値を上面に）
 const FACE_MATS = (v)=>[
   new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(v) }), // 上面を確定値に
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(v) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(7-v) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
   new THREE.MeshStandardMaterial({ map: createDiceTexture(4) }),
@@ -174,34 +174,6 @@ for (let i = 0; i < 3; i++) {
 }
 
 /* ===============================
-   円内制限＋ションベン判定
-================================ */
-const LIMIT_RADIUS = BOWL_RADIUS - 0.5;
-let shonben = false;
-
-function constrainAndCheck(body) {
-  const x = body.position.x;
-  const z = body.position.z;
-  const d = Math.sqrt(x*x + z*z);
-
-  if (d > BOWL_RADIUS) shonben = true;
-
-  if (d > LIMIT_RADIUS) {
-    const nx = x / d;
-    const nz = z / d;
-    body.position.x = nx * LIMIT_RADIUS;
-    body.position.z = nz * LIMIT_RADIUS;
-
-    const v = body.velocity;
-    const dot = v.x*nx + v.z*nz;
-    if (dot > 0) {
-      v.x -= dot * nx;
-      v.z -= dot * nz;
-    }
-  }
-}
-
-/* ===============================
    チンチロ判定
 ================================ */
 function judge(vals) {
@@ -218,45 +190,44 @@ function judge(vals) {
 /* ===============================
    ボタン
 ================================ */
+let shonben = false;
+
 document.getElementById("btn").onclick = () => {
   shonben = false;
   document.getElementById("result").textContent = "";
 
   diceBodies.forEach((b,i)=>{
-    // 高さアップ
-    b.position.set((i-1)*0.9, 2.0, 0);
+    // 少し高めだが控えめ
+    b.position.set((i-1)*0.8, 1.4, 0);
     b.velocity.setZero();
     b.angularVelocity.setZero();
 
-    // 動きを大きく
+    // ★ 動きを小さく
     const a = Math.random()*Math.PI*2;
-    const speed = 4.2;
-    b.velocity.set(Math.cos(a)*speed, 3.2, Math.sin(a)*speed);
+    const speed = 2.2;      // ← 弱め
+    b.velocity.set(Math.cos(a)*speed, 1.2, Math.sin(a)*speed);
     b.angularVelocity.set(
-      Math.random()*7,
-      Math.random()*7,
-      Math.random()*7
+      Math.random()*4,
+      Math.random()*4,
+      Math.random()*4
     );
 
-    // 確定値を先に決めておく
     fixedValues[i] = Math.floor(Math.random()*6)+1;
   });
 
-  // 確定表示（停止後）
+  // 結果表示
   setTimeout(()=>{
     if (shonben) {
       document.getElementById("result").textContent = "💦 ションベン";
     } else {
-      // 見た目を確定値に差し替え
       diceMeshes.forEach((m,i)=>{
         m.material = FACE_MATS(fixedValues[i]);
       });
-      const text =
+      document.getElementById("result").textContent =
         `出目：${fixedValues.join(" , ")}\n` +
         judge(fixedValues);
-      document.getElementById("result").textContent = text;
     }
-  }, 2400);
+  }, 2600);
 };
 
 /* ===============================
@@ -267,7 +238,10 @@ function animate(){
   world.step(1/60);
 
   diceBodies.forEach((b,i)=>{
-    constrainAndCheck(b);
+    // ★ 円の外に出たらションベン（戻さない）
+    const d = Math.hypot(b.position.x, b.position.z);
+    if (d > BOWL_RADIUS) shonben = true;
+
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
