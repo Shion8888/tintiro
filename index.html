@@ -1,235 +1,131 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>チンチロ</title>
-
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Dice</title>
 <style>
-body {
-  margin: 0;
-  padding: 0;
-  background: #111;
-  color: #fff;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-}
-
-.container {
-  width: 100%;
-  max-width: 420px;
-  padding: 20px;
-  text-align: center;
-}
-
-h1 {
-  margin-bottom: 10px;
-  font-size: 2rem;
-}
-
-/* ===== ステージ ===== */
-.stage {
-  position: relative;
-  height: 440px;
-  margin: 30px 0;
-}
-
-/* どんぶり */
-.bowl {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 380px;
-  z-index: 3;
-  pointer-events: none;
-}
-
-/* サイコロ */
-.dice {
-  position: absolute;
-  top: -120px;
-  width: 80px;
-  height: 80px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  padding: 12px;
-  box-sizing: border-box;
-  opacity: 0;
-  z-index: 2;
-}
-
-/* ===== アニメーション ===== */
-.throw {
-  animation: throwIntoBowl 0.9s cubic-bezier(.25,.9,.4,1) forwards;
-}
-
-.inbowl {
-  animation: inBowlShake 0.35s ease-in-out 2;
-}
-
-@keyframes throwIntoBowl {
-  0% {
-    top: -140px;
-    opacity: 0;
-    transform: rotate(0deg);
+  body { margin:0; overflow:hidden; background:#111; }
+  #btn {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 24px;
+    font-size: 18px;
+    border: none;
+    border-radius: 12px;
+    background: #ffcc00;
+    font-weight: bold;
+    cursor: pointer;
   }
-  40% { opacity: 1; }
-  65% {
-    top: 240px;
-    transform: rotate(240deg);
-  }
-  100% {
-    top: 300px;
-    transform: rotate(360deg) scale(0.95);
-  }
-}
-
-@keyframes inBowlShake {
-  0% { transform: translateX(0) rotate(0); }
-  25% { transform: translateX(6px) rotate(6deg); }
-  50% { transform: translateX(-6px) rotate(-6deg); }
-  75% { transform: translateX(4px) rotate(4deg); }
-  100% { transform: translateX(0) rotate(0); }
-}
-
-.result {
-  font-size: 1.3rem;
-  min-height: 2em;
-  margin: 10px 0;
-}
-
-button {
-  width: 100%;
-  padding: 15px;
-  font-size: 1.4rem;
-  border: none;
-  border-radius: 10px;
-  background: #ffcc00;
-  color: #000;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-button:active {
-  transform: scale(0.97);
-}
-
-/* ===== サイコロの目 ===== */
-.pip {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #000;
-  opacity: 0;
-  justify-self: center;
-  align-self: center;
-}
-.pip.on { opacity: 1; }
 </style>
 </head>
-
 <body>
-<div class="container">
-  <h1>🎲 チンチロ</h1>
 
-  <div class="stage">
-    <div class="dice" id="d1"></div>
-    <div class="dice" id="d2"></div>
-    <div class="dice" id="d3"></div>
-    <img src="bowl.png" class="bowl">
-  </div>
+<button id="btn">サイコロを振る</button>
 
-  <div class="result" id="result"></div>
-  <button onclick="roll()">サイコロを振る</button>
-</div>
+<script type="module">
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
-<script>
-const pipLayouts = {
-  1:[4],
-  2:[0,8],
-  3:[0,4,8],
-  4:[0,2,6,8],
-  5:[0,2,4,6,8],
-  6:[0,2,3,5,6,8]
+/* ========= Three.js ========= */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x222222);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(3, 4, 6);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// light
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(5, 10, 5);
+light.castShadow = true;
+scene.add(light);
+
+/* ========= Cannon-es ========= */
+const world = new CANNON.World({
+  gravity: new CANNON.Vec3(0, -9.82, 0)
+});
+
+// 床（物理）
+const groundBody = new CANNON.Body({
+  mass: 0,
+  shape: new CANNON.Plane()
+});
+groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
+world.addBody(groundBody);
+
+// 床（描画）
+const groundMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(10, 10),
+  new THREE.MeshStandardMaterial({ color: 0x444444 })
+);
+groundMesh.rotation.x = -Math.PI/2;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+// サイコロ（物理）
+const diceBody = new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5)),
+  position: new CANNON.Vec3(0, 3, 0)
+});
+world.addBody(diceBody);
+
+// サイコロ（描画）
+const diceMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(1,1,1),
+  new THREE.MeshStandardMaterial({ color: 0xffffff })
+);
+diceMesh.castShadow = true;
+scene.add(diceMesh);
+
+/* ========= ボタンで転がす ========= */
+document.getElementById("btn").onclick = () => {
+  // リセット
+  diceBody.velocity.setZero();
+  diceBody.angularVelocity.setZero();
+  diceBody.position.set(0, 3, 0);
+  diceBody.quaternion.set(0,0,0,1);
+
+  // ランダムな力を加える
+  diceBody.applyImpulse(
+    new CANNON.Vec3(
+      (Math.random()-0.5) * 6,
+      6,
+      (Math.random()-0.5) * 6
+    ),
+    diceBody.position
+  );
 };
 
-let rolling = false;
+/* ========= アニメーションループ ========= */
+const clock = new THREE.Clock();
 
-function rand() {
-  return Math.floor(Math.random() * 6) + 1;
+function animate() {
+  requestAnimationFrame(animate);
+
+  world.step(1/60, clock.getDelta());
+
+  diceMesh.position.copy(diceBody.position);
+  diceMesh.quaternion.copy(diceBody.quaternion);
+
+  renderer.render(scene, camera);
 }
+animate();
 
-function renderDie(el, val) {
-  el.innerHTML = [...Array(9)].map((_, i) =>
-    `<span class="pip${pipLayouts[val].includes(i) ? ' on' : ''}"></span>`
-  ).join("");
-}
-
-function roll() {
-  if (rolling) return;
-  rolling = true;
-
-  const result = document.getElementById("result");
-  result.textContent = "";
-
-  const dices = [d1, d2, d3];
-  const values = dices.map(() => rand());
-
-  dices.forEach((d, i) => {
-    d.className = "dice";
-    d.style.left = `${60 + i * 120}px`;
-    d.style.opacity = 1;
-    renderDie(d, values[i]);
-    void d.offsetWidth;
-    d.classList.add("throw");
-  });
-
-  setTimeout(() => {
-    dices.forEach(d => d.classList.add("inbowl"));
-  }, 900);
-
-  setTimeout(() => {
-    rolling = false;
-    judge(values);
-  }, 1600);
-}
-
-function judge(values) {
-  const r = document.getElementById("result");
-  const [a,b,c] = values;
-  const s = [...values].sort();
-
-  if (a === b && b === c) {
-    r.textContent = a === 1 ? "🎉 ピンゾロ（最強）" : "⚡ アラシ";
-    return;
-  }
-
-  if (s.join() === "1,2,3") {
-    r.textContent = "💀 ヒフミ（最弱）";
-    return;
-  }
-
-  if (s.join() === "4,5,6") {
-    r.textContent = "🔥 シゴロ";
-    return;
-  }
-
-  if (a === b || b === c || a === c) {
-    const point = a === b ? c : a === c ? b : a;
-    r.textContent = `👉 役あり：${point}`;
-    return;
-  }
-
-  r.textContent = "😐 役なし";
-}
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 </script>
 </body>
 </html>
