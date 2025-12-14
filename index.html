@@ -72,7 +72,6 @@ const floorMesh = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0x555555 })
 );
 floorMesh.rotation.x = -Math.PI / 2;
-floorMesh.receiveShadow = true;
 scene.add(floorMesh);
 
 const floorBody = new CANNON.Body({ mass: 0 });
@@ -125,7 +124,6 @@ const diceMesh = new THREE.Mesh(
   new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
   new THREE.MeshStandardMaterial({ color: 0xffffff })
 );
-diceMesh.castShadow = true;
 scene.add(diceMesh);
 
 // 物理
@@ -135,22 +133,46 @@ const diceBody = new CANNON.Body({
     new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)
   )
 });
-
-// 初期位置（中央）
 diceBody.position.set(0, BOWL_Y + 1.0, 0);
 world.addBody(diceBody);
+
+/* =====================================================
+   ★ お椀内に制限する処理（最重要）
+===================================================== */
+const LIMIT_RADIUS = RADIUS - 0.3;
+
+function constrainDiceInBowl() {
+  const x = diceBody.position.x;
+  const z = diceBody.position.z;
+  const dist = Math.sqrt(x * x + z * z);
+
+  if (dist > LIMIT_RADIUS) {
+    const nx = x / dist;
+    const nz = z / dist;
+
+    // 位置を円周内に戻す
+    diceBody.position.x = nx * LIMIT_RADIUS;
+    diceBody.position.z = nz * LIMIT_RADIUS;
+
+    // 外向き速度を除去
+    const v = diceBody.velocity;
+    const dot = v.x * nx + v.z * nz;
+    if (dot > 0) {
+      v.x -= dot * nx;
+      v.z -= dot * nz;
+    }
+  }
+}
 
 /* =====================================================
    転がす処理
 ===================================================== */
 document.getElementById("rollBtn").onclick = () => {
-  // 中央に戻す
   diceBody.position.set(0, BOWL_Y + 1.0, 0);
   diceBody.velocity.setZero();
   diceBody.angularVelocity.setZero();
   diceBody.quaternion.set(0, 0, 0, 1);
 
-  // ★ 弱い横方向速度（円運動っぽく見せる）
   const angle = Math.random() * Math.PI * 2;
   const speed = 2.0;
 
@@ -160,7 +182,6 @@ document.getElementById("rollBtn").onclick = () => {
     Math.sin(angle) * speed
   );
 
-  // ★ 回転も少し与える
   diceBody.angularVelocity.set(
     Math.random() * 5,
     Math.random() * 5,
@@ -176,6 +197,8 @@ const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
   world.step(1 / 60, clock.getDelta());
+
+  constrainDiceInBowl(); // ★ 追加
 
   diceMesh.position.copy(diceBody.position);
   diceMesh.quaternion.copy(diceBody.quaternion);
