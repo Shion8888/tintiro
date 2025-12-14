@@ -76,8 +76,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
 const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 4, 7);
-camera.lookAt(0, 0.5, 0);
+camera.position.set(0, 6, 9);
+camera.lookAt(0, 1.0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setSize(innerWidth, innerHeight);
@@ -103,7 +103,7 @@ const world = new CANNON.World({
 ===================================================== */
 const SIZE = 20;     // 床の広さ
 const DIV  = 128;    // 分割数（滑らかさ）
-const K    = 0.15;   // 曲率（小さいほど浅い）
+const K    = 0.05;   // 曲率（小さいほど浅い）
 
 // ---- 物理（Heightfield） ----
 const heights = [];
@@ -139,7 +139,10 @@ geo.computeVertexNormals();
 
 const groundMesh = new THREE.Mesh(
   geo,
-  new THREE.MeshStandardMaterial({ color: 0x444444 })
+  new THREE.MeshStandardMaterial({
+    color: 0x444444,
+    side: THREE.DoubleSide   // ★ 追加
+  })
 );
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
@@ -174,7 +177,7 @@ for (let i = 0; i < 3; i++) {
     shape: new CANNON.Box(
       new CANNON.Vec3(DICE_SIZE/2, DICE_SIZE/2, DICE_SIZE/2)
     ),
-    position: new CANNON.Vec3((i - 1) * 0.8, 1.2, 0)
+    position: new CANNON.Vec3((i - 1) * 0.8, 2.5, 0)
   });
   world.addBody(body);
   diceBodies.push(body);
