@@ -30,80 +30,81 @@ h1 {
   font-size: 2rem;
 }
 
-/* どんぶりエリア */
+/* ===== ステージ ===== */
 .stage {
   position: relative;
-  height: 340px;
+  height: 360px;
   margin: 20px 0;
 }
 
+/* どんぶり画像 */
 .bowl {
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 8rem;
-  z-index: 3;
+  width: 320px;
+  z-index: 3;        /* 縁は最前面 */
+  pointer-events: none;
 }
 
 /* サイコロ */
 .dice {
   position: absolute;
-  top: -100px;
+  top: -120px;
   width: 80px;
   height: 80px;
   border-radius: 16px;
   background: #fff;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.6);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   padding: 12px;
   box-sizing: border-box;
   opacity: 0;
-  z-index: 2;
+  z-index: 2; /* 最初は縁より奥 */
 }
 
-/* 落下 */
-.drop {
-  animation: drop 0.6s ease-out forwards;
+/* ===== アニメーション ===== */
+
+/* 投入 */
+.throw {
+  animation: throwIntoBowl 0.9s cubic-bezier(.25,.9,.4,1) forwards;
 }
 
-/* 転がり */
-.roll {
-  animation: roll 0.4s linear infinite;
+/* 中でガタガタ */
+.inbowl {
+  animation: inBowlShake 0.35s ease-in-out 2;
 }
 
-/* どんぶり揺れ */
-.shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-@keyframes drop {
+/* 落下 → 縁の裏 → 中 */
+@keyframes throwIntoBowl {
   0% {
-    top: -100px;
+    top: -120px;
     opacity: 0;
+    transform: rotate(0deg);
   }
-  70% {
-    top: 240px;
+  40% {
     opacity: 1;
   }
+  65% {
+    top: 210px;          /* 縁あたり */
+    transform: rotate(240deg);
+  }
   100% {
-    top: 210px;
+    top: 240px;          /* 中に入る */
+    transform: rotate(360deg) scale(0.95);
   }
 }
 
-@keyframes roll {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes shake {
-  0% { transform: translateX(-50%) rotate(0deg); }
-  25% { transform: translateX(-50%) rotate(5deg); }
-  50% { transform: translateX(-50%) rotate(-5deg); }
-  75% { transform: translateX(-50%) rotate(3deg); }
-  100% { transform: translateX(-50%) rotate(0deg); }
+/* 中で転がる */
+@keyframes inBowlShake {
+  0% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(6px) rotate(6deg); }
+  50% { transform: translateX(-6px) rotate(-6deg); }
+  75% { transform: translateX(4px) rotate(4deg); }
+  100% { transform: translateX(0) rotate(0); }
 }
 
 .result {
@@ -128,6 +129,7 @@ button:active {
   transform: scale(0.97);
 }
 
+/* ===== サイコロの目 ===== */
 .pip {
   width: 14px;
   height: 14px;
@@ -137,10 +139,7 @@ button:active {
   justify-self: center;
   align-self: center;
 }
-
-.pip.on {
-  opacity: 1;
-}
+.pip.on { opacity: 1; }
 </style>
 </head>
 
@@ -152,143 +151,67 @@ button:active {
     <div class="dice" id="d1"></div>
     <div class="dice" id="d2"></div>
     <div class="dice" id="d3"></div>
-    <div class="bowl" id="bowl">🥣</div>
+
+    <!-- リアルどんぶり -->
+    <img src="bowl.png" class="bowl">
   </div>
 
   <div class="result" id="result"></div>
-
   <button onclick="roll()">サイコロを振る</button>
 </div>
 
 <script>
 const pipLayouts = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8]
+  1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]
 };
-let rolling = false;
+let rolling=false;
 
-function rand() {
-  return Math.floor(Math.random() * 6) + 1;
+function rand(){return Math.floor(Math.random()*6)+1;}
+
+function renderDie(el,val){
+  el.innerHTML=[...Array(9)].map((_,i)=>
+    `<span class="pip${pipLayouts[val].includes(i)?' on':''}"></span>`
+  ).join("");
 }
 
-function createPips(value) {
-  const active = new Set(pipLayouts[value] || []);
-  return Array.from({ length: 9 }, (_, i) => {
-    const on = active.has(i) ? " on" : "";
-    return `<span class="pip${on}"></span>`;
-  }).join("");
-}
+function roll(){
+  if(rolling) return;
+  rolling=true;
+  document.getElementById("result").textContent="";
 
-function renderDie(el, value) {
-  el.innerHTML = createPips(value);
-}
+  const dices=[d1,d2,d3];
+  const values=dices.map(()=>rand());
 
-function roll() {
-  if (rolling) return;
-  rolling = true;
-
-  const result = document.getElementById("result");
-  const bowl = document.getElementById("bowl");
-  result.textContent = "";
-
-  const dices = [
-    document.getElementById("d1"),
-    document.getElementById("d2"),
-    document.getElementById("d3")
-  ];
-
-  // 初期配置
-  dices.forEach((d, i) => {
-    d.className = "dice roll";
-    d.style.left = `${80 + i * 120}px`;
-    d.style.opacity = 1;
-    renderDie(d, rand());
+  dices.forEach((d,i)=>{
+    d.className="dice";
+    d.style.left=`${80+i*120}px`;
+    d.style.opacity=1;
+    renderDie(d,values[i]);
+    void d.offsetWidth;
+    d.classList.add("throw");
   });
 
-  // 転がり中はランダム表示（rinblog風）
-  let rollingCount = 0;
-  const rollInterval = setInterval(() => {
-    dices.forEach(d => renderDie(d, rand()));
-    rollingCount++;
-    if (rollingCount > 8) {
-      clearInterval(rollInterval);
-      dropDice(dices, bowl);
-    }
-  }, 100);
+  setTimeout(()=>{
+    dices.forEach(d=>d.classList.add("inbowl"));
+  },900);
+
+  setTimeout(()=>{
+    rolling=false;
+    judge(values[0],values[1],values[2]);
+  },1600);
 }
 
-function dropDice(dices, bowl) {
-  const values = dices.map(() => rand());
-
-  dices.forEach((d, i) => {
-    d.className = "dice drop";
-    renderDie(d, values[i]);
-    d.style.transform = "rotate(0deg)";
-  });
-
-  // どんぶり揺れ
-  setTimeout(() => {
-    bowl.classList.add("shake");
-  }, 600);
-
-  // 確定（サイコロのまま止める）
-  setTimeout(() => {
-    bowl.classList.remove("shake");
-
-    dices.forEach((d, i) => {
-      d.className = "dice";      // アニメ完全解除
-      renderDie(d, values[i]);  // pip確定
-      d.style.transform = "rotate(0deg)";
-    });
-
-    rolling = false;
-    judge(values[0], values[1], values[2]);
-  }, 1000);
+function judge(a,b,c){
+  const r=document.getElementById("result");
+  const s=[a,b,c].sort();
+  if(a===b&&b===c) r.textContent=a===1?"🎉 ピンゾロ":"⚡ アラシ";
+  else if(s+''==='1,2,3') r.textContent="💀 ヒフミ";
+  else if(s+''==='4,5,6') r.textContent="🔥 シゴロ";
+  else if(a===b||b===c||a===c){
+    const p=a===b?c:a===c?b:a;
+    r.textContent=`👉 役あり：${p}`;
+  } else r.textContent="😐 役なし";
 }
-
-
-function judge(a, b, c) {
-  const result = document.getElementById("result");
-  const dice = [a, b, c].sort();
-
-  if (a === b && b === c) {
-    if (a === 1) {
-      result.textContent = "🎉 ピンゾロ（最強）";
-    } else {
-      result.textContent = "⚡ アラシ";
-    }
-    return;
-  }
-
-  if (dice[0] === 1 && dice[1] === 2 && dice[2] === 3) {
-    result.textContent = "💀 ヒフミ（負け）";
-    return;
-  }
-
-  if (dice[0] === 4 && dice[1] === 5 && dice[2] === 6) {
-    result.textContent = "🔥 シゴロ（勝ち）";
-    return;
-  }
-
-  if (a === b || b === c || a === c) {
-    const pair = a === b ? c : a === c ? b : a;
-    result.textContent = `👉 役あり：${pair}`;
-    return;
-  }
-
-  result.textContent = "😐 役なし";
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-  ["d1", "d2", "d3"].forEach((id, idx) => {
-    const el = document.getElementById(id);
-    renderDie(el, (idx % 6) + 1);
-  });
-});
 </script>
 </body>
 </html>
