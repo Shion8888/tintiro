@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Simple Bowl</title>
+<title>Chinchiro – Big Roll</title>
 
 <style>
   body {
@@ -28,11 +28,13 @@
   }
   #result {
     position: fixed;
-    top: 20px;
+    top: 16px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 22px;
-    font-weight: bold;
+    text-align: center;
+    line-height: 1.4;
+    white-space: pre;
   }
 </style>
 </head>
@@ -46,15 +48,14 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   サイコロの目テクスチャ
+   サイコロ目テクスチャ
 ================================ */
 function createDiceTexture(n) {
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const ctx = c.getContext("2d");
-
   ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillRect(0,0,256,256);
   ctx.fillStyle = "#000";
 
   const r = 18;
@@ -79,6 +80,16 @@ function createDiceTexture(n) {
   });
   return new THREE.CanvasTexture(c);
 }
+
+// 面の割当（+X,-X,+Y,-Y,+Z,-Z）
+const FACE_MATS = (v)=>[
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(v) }), // 上面を確定値に
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(7-v) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
+  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) }),
+];
 
 /* ===============================
    Three.js
@@ -117,7 +128,7 @@ world.addBody(floorBody);
 /* ===============================
    どんぶり（円）
 ================================ */
-const BOWL_RADIUS = 5;
+const BOWL_RADIUS = 6;
 
 // 内側
 const bowlInner = new THREE.Mesh(
@@ -142,20 +153,12 @@ scene.add(bowlRim);
 const DICE_SIZE = 0.6;
 const diceMeshes = [];
 const diceBodies = [];
-
-const materials = [
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(1) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(6) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
-  new THREE.MeshStandardMaterial({ map: createDiceTexture(4) })
-];
+const fixedValues = [1,1,1];
 
 for (let i = 0; i < 3; i++) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE),
-    materials
+    FACE_MATS(1)
   );
   scene.add(mesh);
   diceMeshes.push(mesh);
@@ -171,19 +174,23 @@ for (let i = 0; i < 3; i++) {
 }
 
 /* ===============================
-   円内制限（最重要）
+   円内制限＋ションベン判定
 ================================ */
-function constrain(body) {
+const LIMIT_RADIUS = BOWL_RADIUS - 0.5;
+let shonben = false;
+
+function constrainAndCheck(body) {
   const x = body.position.x;
   const z = body.position.z;
   const d = Math.sqrt(x*x + z*z);
-  const limit = BOWL_RADIUS - 0.6;
 
-  if (d > limit) {
+  if (d > BOWL_RADIUS) shonben = true;
+
+  if (d > LIMIT_RADIUS) {
     const nx = x / d;
     const nz = z / d;
-    body.position.x = nx * limit;
-    body.position.z = nz * limit;
+    body.position.x = nx * LIMIT_RADIUS;
+    body.position.z = nz * LIMIT_RADIUS;
 
     const v = body.velocity;
     const dot = v.x*nx + v.z*nz;
@@ -212,22 +219,44 @@ function judge(vals) {
    ボタン
 ================================ */
 document.getElementById("btn").onclick = () => {
+  shonben = false;
   document.getElementById("result").textContent = "";
 
   diceBodies.forEach((b,i)=>{
-    b.position.set((i-1)*0.8, 1, 0);
+    // 高さアップ
+    b.position.set((i-1)*0.9, 2.0, 0);
     b.velocity.setZero();
     b.angularVelocity.setZero();
 
+    // 動きを大きく
     const a = Math.random()*Math.PI*2;
-    b.velocity.set(Math.cos(a)*2, 0, Math.sin(a)*2);
-    b.angularVelocity.set(Math.random()*5,Math.random()*5,Math.random()*5);
+    const speed = 4.2;
+    b.velocity.set(Math.cos(a)*speed, 3.2, Math.sin(a)*speed);
+    b.angularVelocity.set(
+      Math.random()*7,
+      Math.random()*7,
+      Math.random()*7
+    );
+
+    // 確定値を先に決めておく
+    fixedValues[i] = Math.floor(Math.random()*6)+1;
   });
 
+  // 確定表示（停止後）
   setTimeout(()=>{
-    const vals = diceBodies.map(()=>Math.floor(Math.random()*6)+1);
-    document.getElementById("result").textContent = judge(vals);
-  },2000);
+    if (shonben) {
+      document.getElementById("result").textContent = "💦 ションベン";
+    } else {
+      // 見た目を確定値に差し替え
+      diceMeshes.forEach((m,i)=>{
+        m.material = FACE_MATS(fixedValues[i]);
+      });
+      const text =
+        `出目：${fixedValues.join(" , ")}\n` +
+        judge(fixedValues);
+      document.getElementById("result").textContent = text;
+    }
+  }, 2400);
 };
 
 /* ===============================
@@ -238,7 +267,7 @@ function animate(){
   world.step(1/60);
 
   diceBodies.forEach((b,i)=>{
-    constrain(b);
+    constrainAndCheck(b);
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
