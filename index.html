@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bowl + Dice (Display Only)</title>
+<title>Bowl Correct Orientation + Dice</title>
 
 <style>
   body {
@@ -25,11 +25,11 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
 /* =====================================================
-   カメラ（斜め上から・底が見える）
+   カメラ（斜め上から覗き込む）
 ===================================================== */
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(6, 8, 8);
-camera.lookAt(0, 2, 0);
+camera.position.set(6, 7, 8);
+camera.lookAt(0, 2.5, 0);
 
 /* =====================================================
    レンダラ
@@ -42,7 +42,6 @@ document.body.appendChild(renderer.domElement);
    ライト
 ===================================================== */
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-
 const light = new THREE.DirectionalLight(0xffffff, 1.2);
 light.position.set(5, 10, 5);
 scene.add(light);
@@ -61,11 +60,11 @@ floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 /* =====================================================
-   お椀（内側が正しく見える）
+   お椀（正しい向き・内側が下）
 ===================================================== */
 const RADIUS = 3;
 
-// 下半分の半球（お椀）
+// 下半分の球（θ: π/2 → π）
 const bowlGeometry = new THREE.SphereGeometry(
   RADIUS,
   64,
@@ -76,8 +75,8 @@ const bowlGeometry = new THREE.SphereGeometry(
   Math.PI / 2
 );
 
-// 内側を向くように法線反転
-bowlGeometry.scale(1, -1, 1);
+// ★ X方向だけ反転（上下は反転しない）
+bowlGeometry.scale(-1, 1, 1);
 bowlGeometry.computeVertexNormals();
 
 const bowl = new THREE.Mesh(
@@ -88,23 +87,24 @@ const bowl = new THREE.Mesh(
   })
 );
 
-// 床より十分上に配置
-bowl.position.y = RADIUS * 1.6;
+// 床より十分上
+const BOWL_Y = RADIUS * 1.6;
+bowl.position.y = BOWL_Y;
 scene.add(bowl);
 
 /* =====================================================
-   縁（分かりやすさ用）
+   縁（リム）
 ===================================================== */
 const rim = new THREE.Mesh(
   new THREE.TorusGeometry(RADIUS, 0.12, 16, 100),
   new THREE.MeshStandardMaterial({ color: 0xff0000 })
 );
 rim.rotation.x = Math.PI / 2;
-rim.position.y = RADIUS * 1.6;
+rim.position.y = BOWL_Y;
 scene.add(rim);
 
 /* =====================================================
-   サイコロ（表示のみ）
+   サイコロ（表示のみ・お椀の底）
 ===================================================== */
 const DICE_SIZE = 0.8;
 
@@ -113,8 +113,13 @@ const dice = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color: 0xffffff })
 );
 
-// お椀の底付近に配置
-dice.position.set(0, RADIUS * 1.6 - RADIUS + DICE_SIZE / 2 + 0.1, 0);
+// お椀の底に配置
+dice.position.set(
+  0,
+  BOWL_Y - RADIUS + DICE_SIZE / 2 + 0.05,
+  0
+);
+
 scene.add(dice);
 
 /* =====================================================
@@ -127,7 +132,7 @@ function animate() {
 animate();
 
 /* =====================================================
-   リサイズ対応
+   リサイズ
 ===================================================== */
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
