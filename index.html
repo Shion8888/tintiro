@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bowl + Dice (Stable Collision)</title>
+<title>Chinchiro Bowl (Center Dice)</title>
 
 <style>
   body {
@@ -20,17 +20,16 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* =====================================================
-   Three.js 基本設定
+   Three.js 基本
 ===================================================== */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x222222);
 
-// カメラ：少し上から見下ろす
+// カメラ：お椀の中が見える位置
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(6, 10, 10);
-camera.lookAt(0, 3, 0);
+camera.position.set(0, 6, 7);
+camera.lookAt(0, 2.5, 0);
 
-// レンダラ
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -39,34 +38,32 @@ document.body.appendChild(renderer.domElement);
 // ライト
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const light = new THREE.DirectionalLight(0xffffff, 1.2);
-light.position.set(5, 15, 5);
+light.position.set(5, 10, 5);
 light.castShadow = true;
 scene.add(light);
 
 /* =====================================================
-   Cannon-es World
+   Cannon World
 ===================================================== */
-const world = new CANNON.World({
-  gravity: new CANNON.Vec3(0, -9.82, 0)
-});
+const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);
 
 /* =====================================================
-   マテリアル（跳ねを抑える）
+   マテリアル
 ===================================================== */
 const bowlMat = new CANNON.Material("bowl");
 const diceMat = new CANNON.Material("dice");
 
 world.addContactMaterial(
   new CANNON.ContactMaterial(bowlMat, diceMat, {
-    friction: 0.5,
-    restitution: 0.0   // 跳ねない
+    friction: 0.6,
+    restitution: 0.0
   })
 );
 
 /* =====================================================
-   床（見た目 + 物理）
+   床（平面）
 ===================================================== */
-// 見た目
 const floorMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(40, 40),
   new THREE.MeshStandardMaterial({ color: 0x555555 })
@@ -75,19 +72,18 @@ floorMesh.rotation.x = -Math.PI / 2;
 floorMesh.receiveShadow = true;
 scene.add(floorMesh);
 
-// 物理
 const floorBody = new CANNON.Body({ mass: 0, material: bowlMat });
 floorBody.addShape(new CANNON.Plane());
 floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 world.addBody(floorBody);
 
 /* =====================================================
-   お椀（見た目）
+   お椀（見た目のみ）
 ===================================================== */
 const RADIUS = 3;
-const BOWL_Y = RADIUS * 1.6;
+const BOWL_Y = 3.5;
 
-// 下半球（内側が見える）
+// 半球（内側表示）
 const bowlGeo = new THREE.SphereGeometry(
   RADIUS,
   64,
@@ -97,8 +93,6 @@ const bowlGeo = new THREE.SphereGeometry(
   Math.PI / 2,
   Math.PI / 2
 );
-
-// 内側向きに反転（上下は反転しない）
 bowlGeo.scale(-1, 1, 1);
 bowlGeo.computeVertexNormals();
 
@@ -110,7 +104,7 @@ bowlMesh.position.y = BOWL_Y;
 bowlMesh.castShadow = true;
 scene.add(bowlMesh);
 
-// 縁（見やすさ用）
+// 縁
 const rim = new THREE.Mesh(
   new THREE.TorusGeometry(RADIUS, 0.12, 16, 100),
   new THREE.MeshStandardMaterial({ color: 0xff0000 })
@@ -120,46 +114,41 @@ rim.position.y = BOWL_Y;
 scene.add(rim);
 
 /* =====================================================
-   お椀（物理：Cylinder + 底 Plane）
+   お椀（物理：底＋円筒）
 ===================================================== */
 const bowlBody = new CANNON.Body({ mass: 0, material: bowlMat });
 
-// --- 底 ---
+// 底
 const bottom = new CANNON.Plane();
-const bottomQuat = new CANNON.Quaternion();
-bottomQuat.setFromEuler(-Math.PI / 2, 0, 0);
-
-// 底を少し下げて安定させる
+const bottomQ = new CANNON.Quaternion();
+bottomQ.setFromEuler(-Math.PI / 2, 0, 0);
 bowlBody.addShape(
   bottom,
-  new CANNON.Vec3(0, BOWL_Y - RADIUS - 0.05, 0),
-  bottomQuat
+  new CANNON.Vec3(0, BOWL_Y - RADIUS - 0.1, 0),
+  bottomQ
 );
 
-// --- 側面（Cylinder） ---
-const wallHeight = RADIUS;
+// 側面（円筒）
 const wallShape = new CANNON.Cylinder(
-  RADIUS - 0.05,
-  RADIUS - 0.05,
-  wallHeight,
+  RADIUS * 0.92,
+  RADIUS * 0.92,
+  RADIUS,
   32
 );
-
-const wallQuat = new CANNON.Quaternion();
-wallQuat.setFromEuler(Math.PI / 2, 0, 0);
-
+const wallQ = new CANNON.Quaternion();
+wallQ.setFromEuler(Math.PI / 2, 0, 0);
 bowlBody.addShape(
   wallShape,
-  new CANNON.Vec3(0, BOWL_Y - wallHeight / 2, 0),
-  wallQuat
+  new CANNON.Vec3(0, BOWL_Y - RADIUS / 2, 0),
+  wallQ
 );
 
 world.addBody(bowlBody);
 
 /* =====================================================
-   サイコロ（小さめ）
+   サイコロ（必ず中央）
 ===================================================== */
-const DICE_SIZE = 0.4;
+const DICE_SIZE = 0.35;
 
 // 見た目
 const diceMesh = new THREE.Mesh(
@@ -175,9 +164,16 @@ const diceBody = new CANNON.Body({
   material: diceMat,
   shape: new CANNON.Box(
     new CANNON.Vec3(DICE_SIZE / 2, DICE_SIZE / 2, DICE_SIZE / 2)
-  ),
-  position: new CANNON.Vec3(0, BOWL_Y + 1.2, 0)
+  )
 });
+
+// ★ 必ずお椀の真ん中
+diceBody.position.set(0, BOWL_Y + 1.8, 0);
+
+// ★ 少しだけ横方向の初速
+diceBody.velocity.set(0.9, 0, 0);
+diceBody.angularVelocity.setZero();
+
 world.addBody(diceBody);
 
 /* =====================================================
@@ -187,7 +183,6 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-
   world.step(1 / 60, clock.getDelta());
 
   diceMesh.position.copy(diceBody.position);
@@ -197,9 +192,6 @@ function animate() {
 }
 animate();
 
-/* =====================================================
-   リサイズ対応
-===================================================== */
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
