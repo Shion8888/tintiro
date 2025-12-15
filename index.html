@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Final</title>
+<title>Chinchiro – Fixed</title>
 
 <style>
 body {
@@ -49,30 +49,30 @@ import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 /* ===============================
    サイコロ目テクスチャ
 ================================ */
-function createDiceTexture(n) {
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const ctx = c.getContext("2d");
-  ctx.fillStyle = "#fff";
+function createDiceTexture(n){
+  const c=document.createElement("canvas");
+  c.width=c.height=256;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#fff";
   ctx.fillRect(0,0,256,256);
-  ctx.fillStyle = "#000";
+  ctx.fillStyle="#000";
 
-  const r = 18;
-  const p = {
+  const r=18;
+  const p={
     tl:[64,64], tr:[192,64],
     ml:[64,128], mr:[192,128],
     bl:[64,192], br:[192,192],
     mc:[128,128]
   };
-  const map = {
-    1:["mc"], 2:["tl","br"], 3:["tl","mc","br"],
+  const map={
+    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
     4:["tl","tr","bl","br"],
     5:["tl","tr","mc","bl","br"],
     6:["tl","ml","bl","tr","mr","br"]
   };
   map[n].forEach(k=>{
     ctx.beginPath();
-    ctx.arc(...p[k], r, 0, Math.PI*2);
+    ctx.arc(...p[k],r,0,Math.PI*2);
     ctx.fill();
   });
   return new THREE.CanvasTexture(c);
@@ -80,27 +80,27 @@ function createDiceTexture(n) {
 
 function materialsForValue(v){
   return [
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(2) }),
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(5) }),
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(v) }),
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(7-v) }),
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(3) }),
-    new THREE.MeshStandardMaterial({ map: createDiceTexture(4) }),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(v)}),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(7-v)}),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
+    new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
   ];
 }
 
 /* ===============================
    出目 → 回転
 ================================ */
-function quaternionForValue(v) {
-  const q = new CANNON.Quaternion();
-  switch (v) {
-    case 1: q.setFromEuler(0,0,0); break;
-    case 2: q.setFromEuler(0,0,Math.PI/2); break;
-    case 3: q.setFromEuler(Math.PI/2,0,0); break;
-    case 4: q.setFromEuler(-Math.PI/2,0,0); break;
-    case 5: q.setFromEuler(0,0,-Math.PI/2); break;
-    case 6: q.setFromEuler(Math.PI,0,0); break;
+function quaternionForValue(v){
+  const q=new CANNON.Quaternion();
+  switch(v){
+    case 1:q.setFromEuler(0,0,0);break;
+    case 2:q.setFromEuler(0,0,Math.PI/2);break;
+    case 3:q.setFromEuler(Math.PI/2,0,0);break;
+    case 4:q.setFromEuler(-Math.PI/2,0,0);break;
+    case 5:q.setFromEuler(0,0,-Math.PI/2);break;
+    case 6:q.setFromEuler(Math.PI,0,0);break;
   }
   return q;
 }
@@ -108,24 +108,24 @@ function quaternionForValue(v) {
 /* ===============================
    Three / Cannon
 ================================ */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x222222);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x222222);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 15, 0);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,15,0);
 camera.lookAt(0,0,0);
 camera.up.set(0,0,-1);
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
 scene.add(new THREE.AmbientLight(0xffffff,0.7));
 
-const world = new CANNON.World();
+const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 
-const floor = new CANNON.Body({ mass:0 });
+const floor=new CANNON.Body({mass:0});
 floor.addShape(new CANNON.Plane());
 floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
@@ -133,38 +133,40 @@ world.addBody(floor);
 /* ===============================
    どんぶり
 ================================ */
-const R = 6;
-const inner = new THREE.Mesh(
+const R=6;
+const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
-  new THREE.MeshStandardMaterial({ color:0x8b5a2b })
+  new THREE.MeshStandardMaterial({color:0x8b5a2b})
 );
-inner.rotation.x = -Math.PI/2;
+inner.rotation.x=-Math.PI/2;
 scene.add(inner);
 
-const rim = new THREE.Mesh(
+const rim=new THREE.Mesh(
   new THREE.RingGeometry(R-0.3,R,64),
-  new THREE.MeshStandardMaterial({ color:0xff0000 })
+  new THREE.MeshStandardMaterial({color:0xff0000})
 );
-rim.rotation.x = -Math.PI/2;
-rim.position.y = 0.01;
+rim.rotation.x=-Math.PI/2;
+rim.position.y=0.01;
 scene.add(rim);
 
 /* ===============================
    サイコロ
 ================================ */
-const diceMeshes=[], diceBodies=[], values=[1,1,1];
+const diceMeshes=[],diceBodies=[],values=[1,1,1];
 for(let i=0;i<3;i++){
   const m=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
     materialsForValue(1)
   );
-  scene.add(m); diceMeshes.push(m);
+  scene.add(m);
+  diceMeshes.push(m);
 
   const b=new CANNON.Body({
     mass:1,
     shape:new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3))
   });
-  world.addBody(b); diceBodies.push(b);
+  world.addBody(b);
+  diceBodies.push(b);
 }
 
 /* ===============================
@@ -189,15 +191,18 @@ btn.onclick=()=>{
   result.textContent="";
 
   diceBodies.forEach((b,i)=>{
+    b.wakeUp();
     b.position.set((i-1)*0.9,1.6,0);
     b.velocity.setZero();
     b.angularVelocity.setZero();
 
     const a=Math.random()*Math.PI*2;
     b.velocity.set(Math.cos(a)*3.2,2.0,Math.sin(a)*3.2);
-    b.angularVelocity.set(4,4,4);
+    b.angularVelocity.set(6,6,6);
 
     values[i]=Math.floor(Math.random()*6)+1;
+    b.userData.fixedQuat=quaternionForValue(values[i]);
+    diceMeshes[i].material=materialsForValue(values[i]);
   });
 
   setTimeout(()=>{
@@ -205,13 +210,15 @@ btn.onclick=()=>{
       result.textContent="💦 ションベン";
     }else{
       diceBodies.forEach((b,i)=>{
-        b.quaternion.copy(quaternionForValue(values[i]));
+        b.velocity.setZero();
         b.angularVelocity.setZero();
-        diceMeshes[i].material=materialsForValue(values[i]);
+        b.quaternion.copy(b.userData.fixedQuat);
+        b.sleep();
+        diceMeshes[i].quaternion.copy(b.userData.fixedQuat);
       });
       result.textContent=`出目：${values.join(" , ")}\n${judge(values)}`;
     }
-  },2600);
+  },2500);
 };
 
 /* ===============================
@@ -224,7 +231,9 @@ function animate(){
   diceBodies.forEach((b,i)=>{
     if(Math.hypot(b.position.x,b.position.z)>R) shonben=true;
     diceMeshes[i].position.copy(b.position);
-    diceMeshes[i].quaternion.copy(b.quaternion);
+    if(!b.sleepState){
+      diceMeshes[i].quaternion.copy(b.quaternion);
+    }
   });
   renderer.render(scene,camera);
 }
