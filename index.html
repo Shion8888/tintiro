@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Fixed</title>
+<title>Chinchiro – Correct Fixed</title>
 
 <style>
 body {
@@ -96,8 +96,8 @@ function quaternionForValue(v){
   const q=new CANNON.Quaternion();
   switch(v){
     case 1:q.setFromEuler(0,0,0);break;
-    case 2:q.setFromEuler(0,0,Math.PI/2);break;
-    case 3:q.setFromEuler(Math.PI/2,0,0);break;
+    case 2:q.setFromEuler(0,0, Math.PI/2);break;
+    case 3:q.setFromEuler( Math.PI/2,0,0);break;
     case 4:q.setFromEuler(-Math.PI/2,0,0);break;
     case 5:q.setFromEuler(0,0,-Math.PI/2);break;
     case 6:q.setFromEuler(Math.PI,0,0);break;
@@ -106,7 +106,7 @@ function quaternionForValue(v){
 }
 
 /* ===============================
-   Three / Cannon
+   Three / Cannon 初期化
 ================================ */
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x222222);
@@ -125,6 +125,9 @@ scene.add(new THREE.AmbientLight(0xffffff,0.7));
 const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 
+/* ===============================
+   床
+================================ */
 const floor=new CANNON.Body({mass:0});
 floor.addShape(new CANNON.Plane());
 floor.quaternion.setFromEuler(-Math.PI/2,0,0);
@@ -134,6 +137,7 @@ world.addBody(floor);
    どんぶり
 ================================ */
 const R=6;
+
 const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
@@ -152,21 +156,24 @@ scene.add(rim);
 /* ===============================
    サイコロ
 ================================ */
-const diceMeshes=[],diceBodies=[],values=[1,1,1];
+const diceMeshes=[];
+const diceBodies=[];
+const values=[1,1,1];
+
 for(let i=0;i<3;i++){
-  const m=new THREE.Mesh(
+  const mesh=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
     materialsForValue(1)
   );
-  scene.add(m);
-  diceMeshes.push(m);
+  scene.add(mesh);
+  diceMeshes.push(mesh);
 
-  const b=new CANNON.Body({
+  const body=new CANNON.Body({
     mass:1,
     shape:new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3))
   });
-  world.addBody(b);
-  diceBodies.push(b);
+  world.addBody(body);
+  diceBodies.push(body);
 }
 
 /* ===============================
@@ -174,15 +181,15 @@ for(let i=0;i<3;i++){
 ================================ */
 function judge(v){
   const s=[...v].sort();
-  if(v[0]==v[1]&&v[1]==v[2]) return v[0]==1?"🎉 ピンゾロ":"⚡ アラシ";
+  if(v[0]===v[1] && v[1]===v[2]) return v[0]===1?"🎉 ピンゾロ":"⚡ アラシ";
   if(s+""==="1,2,3") return "💀 ヒフミ";
   if(s+""==="4,5,6") return "🔥 シゴロ";
-  if(v[0]==v[1]||v[1]==v[2]||v[0]==v[2]) return "👉 役あり";
+  if(v[0]===v[1] || v[1]===v[2] || v[0]===v[2]) return "👉 役あり";
   return "😐 役なし";
 }
 
 /* ===============================
-   ボタン
+   ボタン処理
 ================================ */
 let shonben=false;
 
@@ -192,37 +199,47 @@ btn.onclick=()=>{
 
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
+
     b.position.set((i-1)*0.9,1.6,0);
     b.velocity.setZero();
     b.angularVelocity.setZero();
 
     const a=Math.random()*Math.PI*2;
-    b.velocity.set(Math.cos(a)*3.2,2.0,Math.sin(a)*3.2);
+    b.velocity.set(Math.cos(a)*3,2.2,Math.sin(a)*3);
     b.angularVelocity.set(6,6,6);
 
+    // 出目だけ確定（ここでは material を変えない）
     values[i]=Math.floor(Math.random()*6)+1;
     b.userData.fixedQuat=quaternionForValue(values[i]);
-    diceMeshes[i].material=materialsForValue(values[i]);
   });
 
+  // 停止処理
   setTimeout(()=>{
     if(shonben){
       result.textContent="💦 ションベン";
-    }else{
-      diceBodies.forEach((b,i)=>{
-        b.velocity.setZero();
-        b.angularVelocity.setZero();
-        b.quaternion.copy(b.userData.fixedQuat);
-        b.sleep();
-        diceMeshes[i].quaternion.copy(b.userData.fixedQuat);
-      });
-      result.textContent=`出目：${values.join(" , ")}\n${judge(values)}`;
+      return;
     }
+
+    diceBodies.forEach((b,i)=>{
+      b.velocity.setZero();
+      b.angularVelocity.setZero();
+
+      // 物理・描画の両方を確定姿勢に
+      b.quaternion.copy(b.userData.fixedQuat);
+      diceMeshes[i].quaternion.copy(b.userData.fixedQuat);
+
+      // ここで初めて目を表示
+      diceMeshes[i].material = materialsForValue(values[i]);
+
+      b.sleep();
+    });
+
+    result.textContent=`出目：${values.join(" , ")}\n${judge(values)}`;
   },2500);
 };
 
 /* ===============================
-   ループ
+   アニメーションループ
 ================================ */
 function animate(){
   requestAnimationFrame(animate);
@@ -230,11 +247,15 @@ function animate(){
 
   diceBodies.forEach((b,i)=>{
     if(Math.hypot(b.position.x,b.position.z)>R) shonben=true;
+
     diceMeshes[i].position.copy(b.position);
+
+    // sleep 中は物理回転を上書きしない
     if(!b.sleepState){
       diceMeshes[i].quaternion.copy(b.quaternion);
     }
   });
+
   renderer.render(scene,camera);
 }
 animate();
