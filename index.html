@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Correct Fixed</title>
+<title>Chinchiro – Physics Based</title>
 
 <style>
 body {
@@ -47,7 +47,7 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   サイコロ目テクスチャ
+   Dice texture
 ================================ */
 function createDiceTexture(n){
   const c=document.createElement("canvas");
@@ -78,35 +78,17 @@ function createDiceTexture(n){
   return new THREE.CanvasTexture(c);
 }
 
-function materialsForValue(v){
-  return [
-    new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
-    new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
-    new THREE.MeshStandardMaterial({map:createDiceTexture(v)}),
-    new THREE.MeshStandardMaterial({map:createDiceTexture(7-v)}),
-    new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
-    new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
-  ];
-}
+const materials=[
+  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
+];
 
 /* ===============================
-   出目 → 回転
-================================ */
-function quaternionForValue(v){
-  const q=new CANNON.Quaternion();
-  switch(v){
-    case 1:q.setFromEuler(0,0,0);break;
-    case 2:q.setFromEuler(0,0, Math.PI/2);break;
-    case 3:q.setFromEuler( Math.PI/2,0,0);break;
-    case 4:q.setFromEuler(-Math.PI/2,0,0);break;
-    case 5:q.setFromEuler(0,0,-Math.PI/2);break;
-    case 6:q.setFromEuler(Math.PI,0,0);break;
-  }
-  return q;
-}
-
-/* ===============================
-   Three / Cannon 初期化
+   Three / Cannon
 ================================ */
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x222222);
@@ -125,19 +107,15 @@ scene.add(new THREE.AmbientLight(0xffffff,0.7));
 const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 
-/* ===============================
-   床
-================================ */
 const floor=new CANNON.Body({mass:0});
 floor.addShape(new CANNON.Plane());
 floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
 /* ===============================
-   どんぶり
+   Bowl
 ================================ */
 const R=6;
-
 const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
@@ -154,16 +132,13 @@ rim.position.y=0.01;
 scene.add(rim);
 
 /* ===============================
-   サイコロ
+   Dice
 ================================ */
-const diceMeshes=[];
-const diceBodies=[];
-const values=[1,1,1];
-
+const diceMeshes=[],diceBodies=[];
 for(let i=0;i<3;i++){
   const mesh=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
-    materialsForValue(1)
+    materials
   );
   scene.add(mesh);
   diceMeshes.push(mesh);
@@ -177,85 +152,64 @@ for(let i=0;i<3;i++){
 }
 
 /* ===============================
-   判定
+   Face normals
 ================================ */
-function judge(v){
-  const s=[...v].sort();
-  if(v[0]===v[1] && v[1]===v[2]) return v[0]===1?"🎉 ピンゾロ":"⚡ アラシ";
-  if(s+""==="1,2,3") return "💀 ヒフミ";
-  if(s+""==="4,5,6") return "🔥 シゴロ";
-  if(v[0]===v[1] || v[1]===v[2] || v[0]===v[2]) return "👉 役あり";
-  return "😐 役なし";
+const faceNormals=[
+  {value:1,v:new CANNON.Vec3(0,1,0)},
+  {value:6,v:new CANNON.Vec3(0,-1,0)},
+  {value:2,v:new CANNON.Vec3(1,0,0)},
+  {value:5,v:new CANNON.Vec3(-1,0,0)},
+  {value:3,v:new CANNON.Vec3(0,0,1)},
+  {value:4,v:new CANNON.Vec3(0,0,-1)},
+];
+
+function getDiceValue(body){
+  const up=new CANNON.Vec3(0,1,0);
+  let max=-1e9,result=1;
+  for(const f of faceNormals){
+    const w=body.quaternion.vmult(f.v);
+    const d=w.dot(up);
+    if(d>max){max=d;result=f.value;}
+  }
+  return result;
 }
 
 /* ===============================
-   ボタン処理
+   Roll
 ================================ */
-let shonben=false;
-
 btn.onclick=()=>{
-  shonben=false;
   result.textContent="";
-
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
-
-    b.position.set((i-1)*0.9,1.6,0);
-    b.velocity.setZero();
-    b.angularVelocity.setZero();
-
-    const a=Math.random()*Math.PI*2;
-    b.velocity.set(Math.cos(a)*3,2.2,Math.sin(a)*3);
-    b.angularVelocity.set(6,6,6);
-
-    // 出目だけ確定（ここでは material を変えない）
-    values[i]=Math.floor(Math.random()*6)+1;
-    b.userData.fixedQuat=quaternionForValue(values[i]);
+    b.position.set((i-1)*0.9,1.8,0);
+    b.velocity.set(
+      (Math.random()-0.5)*4,
+      2.5,
+      (Math.random()-0.5)*4
+    );
+    b.angularVelocity.set(
+      Math.random()*8,
+      Math.random()*8,
+      Math.random()*8
+    );
   });
 
-  // 停止処理
   setTimeout(()=>{
-    if(shonben){
-      result.textContent="💦 ションベン";
-      return;
-    }
-
-    diceBodies.forEach((b,i)=>{
-      b.velocity.setZero();
-      b.angularVelocity.setZero();
-
-      // 物理・描画の両方を確定姿勢に
-      b.quaternion.copy(b.userData.fixedQuat);
-      diceMeshes[i].quaternion.copy(b.userData.fixedQuat);
-
-      // ここで初めて目を表示
-      diceMeshes[i].material = materialsForValue(values[i]);
-
-      b.sleep();
-    });
-
-    result.textContent=`出目：${values.join(" , ")}\n${judge(values)}`;
-  },2500);
+    const values=diceBodies.map(getDiceValue);
+    result.textContent=`出目：${values.join(" , ")}`;
+  },3000);
 };
 
 /* ===============================
-   アニメーションループ
+   Loop
 ================================ */
 function animate(){
   requestAnimationFrame(animate);
   world.step(1/60);
-
   diceBodies.forEach((b,i)=>{
-    if(Math.hypot(b.position.x,b.position.z)>R) shonben=true;
-
     diceMeshes[i].position.copy(b.position);
-
-    // sleep 中は物理回転を上書きしない
-    if(!b.sleepState){
-      diceMeshes[i].quaternion.copy(b.quaternion);
-    }
+    diceMeshes[i].quaternion.copy(b.quaternion);
   });
-
   renderer.render(scene,camera);
 }
 animate();
