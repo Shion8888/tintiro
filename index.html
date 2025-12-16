@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Cheat Mode</title>
+<title>Chinchiro – Cheat Dice</title>
 
 <style>
 body {
@@ -29,13 +29,8 @@ button {
   font-weight: bold;
   cursor: pointer;
 }
-#btn {
-  background: #ffcc00;
-}
-#cheatBtn {
-  background: #ff4444;
-  color: #fff;
-}
+#btn { background: #ffcc00; }
+#cheatBtn { background: #ff4444; color: #fff; }
 #result {
   position: fixed;
   top: 14px;
@@ -60,7 +55,49 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   基本セットアップ
+   Dice texture（目）
+================================ */
+function createDiceTexture(n){
+  const c=document.createElement("canvas");
+  c.width=c.height=256;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#fff";
+  ctx.fillRect(0,0,256,256);
+  ctx.fillStyle="#000";
+
+  const r=18;
+  const p={
+    tl:[64,64], tr:[192,64],
+    ml:[64,128], mr:[192,128],
+    bl:[64,192], br:[192,192],
+    mc:[128,128]
+  };
+  const map={
+    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
+    4:["tl","tr","bl","br"],
+    5:["tl","tr","mc","bl","br"],
+    6:["tl","ml","bl","tr","mr","br"]
+  };
+  map[n].forEach(k=>{
+    ctx.beginPath();
+    ctx.arc(...p[k],r,0,Math.PI*2);
+    ctx.fill();
+  });
+  return new THREE.CanvasTexture(c);
+}
+
+/* Three.js の BoxGeometry の面順に合わせたマテリアル */
+const diceMaterials=[
+  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}), // +X
+  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}), // -X
+  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}), // +Y
+  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}), // -Y
+  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}), // +Z
+  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}), // -Z
+];
+
+/* ===============================
+   Three / Cannon
 ================================ */
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x222222);
@@ -107,11 +144,11 @@ scene.add(rim);
    Dice
 ================================ */
 const diceMeshes=[],diceBodies=[];
-const geom=new THREE.BoxGeometry(0.6,0.6,0.6);
-const mat=new THREE.MeshStandardMaterial({color:0xffffff});
-
 for(let i=0;i<3;i++){
-  const mesh=new THREE.Mesh(geom,mat);
+  const mesh=new THREE.Mesh(
+    new THREE.BoxGeometry(0.6,0.6,0.6),
+    diceMaterials
+  );
   scene.add(mesh);
   diceMeshes.push(mesh);
 
@@ -151,23 +188,16 @@ function getDiceValue(body){
 ================================ */
 let cheatMode=false;
 
-cheatBtn.onclick=()=>{
-  cheatMode=true;
-  roll();
-};
-
-btn.onclick=()=>{
-  cheatMode=false;
-  roll();
-};
+btn.onclick=()=>{ cheatMode=false; roll(); };
+cheatBtn.onclick=()=>{ cheatMode=true; roll(); };
 
 function forceDiceValue(body,value){
   const f=faceNormals.find(f=>f.value===value);
   const q=new CANNON.Quaternion();
   q.setFromVectors(f.v,new CANNON.Vec3(0,1,0));
   body.quaternion.copy(q);
-  body.angularVelocity.setZero();
   body.velocity.setZero();
+  body.angularVelocity.setZero();
 }
 
 /* ===============================
@@ -178,32 +208,23 @@ function roll(){
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
     b.position.set((i-1)*0.9,1.8,0);
-    b.velocity.set(
-      (Math.random()-0.5)*12,
-      2.5,
-      (Math.random()-0.5)*12
-    );
-    b.angularVelocity.set(
-      Math.random()*8,
-      Math.random()*8,
-      Math.random()*8
-    );
+    b.velocity.set((Math.random()-0.5)*12,2.5,(Math.random()-0.5)*12);
+    b.angularVelocity.set(Math.random()*8,Math.random()*8,Math.random()*8);
   });
 
   setTimeout(()=>{
     if(cheatMode){
-      // シゴロ以上をランダム選択
       const patterns=[
         [4,5,6], // シゴロ
         [1,1,1], // ピンゾロ
-        [3,3,3], // アラシ例
+        [3,3,3], // アラシ
       ];
       const target=patterns[Math.floor(Math.random()*patterns.length)];
       diceBodies.forEach((b,i)=>forceDiceValue(b,target[i]));
     }
 
     const values=diceBodies.map(getDiceValue);
-    result.textContent=`出目：${values.join(" , ")}\n（${cheatMode?"イカサマ":"通常"}）`;
+    result.textContent=`出目：${values.join(" , ")}\n${cheatMode?"🎭 イカサマ":"通常"}`;
   },3000);
 }
 
