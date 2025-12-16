@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Natural Cheat Final</title>
+<title>Chinchiro – Accurate + Natural Cheat</title>
 
 <style>
 body {
@@ -47,7 +47,7 @@ button {
 <div id="result"></div>
 <div id="ui">
   <button id="btn">サイコロを振る</button>
-  <button id="cheatBtn">🎲 イカサマ</button>
+  <button id="cheatBtn">🎲 イカサマ（111）</button>
 </div>
 
 <script type="module">
@@ -86,13 +86,14 @@ function createDiceTexture(n){
   return new THREE.CanvasTexture(c);
 }
 
+/* BoxGeometry の面順： +X, -X, +Y, -Y, +Z, -Z */
 const materials=[
-  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}), // +X
+  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}), // -X
+  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}), // +Y
+  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}), // -Y
+  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}), // +Z
+  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}), // -Z
 ];
 
 /* ===============================
@@ -124,7 +125,7 @@ floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
 /* ===============================
-   Bowl (Donburi UI 完全復活)
+   Bowl (Donburi UI)
 ================================ */
 const R = 6;
 
@@ -157,7 +158,8 @@ for(let i=0;i<3;i++){
 
   const body=new CANNON.Body({
     mass:1,
-    angularDamping:0.2
+    angularDamping:0.25, // 少し落ち着かせる
+    linearDamping:0.02
   });
   body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
   world.addBody(body);
@@ -165,7 +167,8 @@ for(let i=0;i<3;i++){
 }
 
 /* ===============================
-   Face normals
+   Face normals (この対応が出目判定の鍵)
+   +Y=1, -Y=6, +X=2, -X=5, +Z=3, -Z=4
 ================================ */
 const faceNormals=[
   {value:1,v:new CANNON.Vec3(0,1,0)},
@@ -188,74 +191,182 @@ function getDiceValue(body){
 }
 
 /* ===============================
-   Shonben
+   Shonben check
 ================================ */
 function isShonben(){
   return diceBodies.some(b=>{
     const x=b.position.x;
     const z=b.position.z;
-    return Math.sqrt(x*x+z*z)>R;
+    return Math.sqrt(x*x + z*z) > R;
   });
 }
 
 /* ===============================
-   Cheat control (自然イカサマ)
+   Role Judge (+説明)
 ================================ */
-let cheat=false;
-btn.onclick=()=>{cheat=false; roll();};
-cheatBtn.onclick=()=>{cheat=true; roll();};
+function judgeRole(values){
+  if(isShonben()) return {name:"ションベン", desc:"サイコロがドンブリ外に出た"};
+
+  const v=[...values].sort((a,b)=>a-b);
+  if(v[0]===1 && v[1]===1 && v[2]===1) return {name:"ピンゾロ", desc:"最強役"};
+  if(v[0]===v[1] && v[1]===v[2]) return {name:"アラシ", desc:"ゾロ目の強役"};
+  if(v.join("")==="456") return {name:"シゴロ", desc:"強役（高目）"};
+  if(v.join("")==="123") return {name:"ヒフミ", desc:"最弱役"};
+
+  if(v[0]===v[1] || v[1]===v[2]) {
+    const eye = (v[0]===v[1]) ? v[2] : v[0];
+    return {name:`${eye}の目`, desc:`${eye}で勝負`};
+  }
+  return {name:"役なし", desc:"無効"};
+}
+
+/* ===============================
+   “止まった”判定（ズレの根本原因対策）
+================================ */
+const V_EPS = 0.12;     // 速度閾値
+const W_EPS = 0.25;     // 角速度閾値
+const NEED_FRAMES = 25; // 連続何フレーム止まれば確定か
+
+function isBodySettled(b){
+  return (b.velocity.length() < V_EPS) && (b.angularVelocity.length() < W_EPS);
+}
+
+let settleFrames = 0;
+let pendingResult = false;
+let cheat = false;
+let rollStartTime = 0;
+
+/* ===============================
+   イカサマ：最初から「1が上」っぽく投げる（バレにくく111を保証）
+================================ */
+function setValueUpWithRandomYaw(body, value){
+  const f = faceNormals.find(x => x.value === value);
+  const q = new CANNON.Quaternion();
+  q.setFromVectors(f.v, new CANNON.Vec3(0,1,0)); // value面を上へ
+
+  // 上方向(y軸)回りにランダム回転（見た目が毎回同じにならない）
+  const yaw = (Math.random()*2-1) * Math.PI; // -π..π
+  const qYaw = new CANNON.Quaternion();
+  qYaw.setFromAxisAngle(new CANNON.Vec3(0,1,0), yaw);
+
+  // 少しだけ傾ける（完全固定に見えない）
+  const tiltAxis = new CANNON.Vec3(Math.random()*2-1, 0, Math.random()*2-1);
+  if(tiltAxis.length() < 1e-6) tiltAxis.set(1,0,0);
+  tiltAxis.normalize();
+  const tilt = (Math.random()*0.18); // 0..約10度
+  const qTilt = new CANNON.Quaternion();
+  qTilt.setFromAxisAngle(tiltAxis, tilt);
+
+  // 合成：tilt * yaw * base
+  const qq = new CANNON.Quaternion();
+  qq.copy(q);
+  qYaw.mult(qq, qq);
+  qTilt.mult(qq, qq);
+
+  body.quaternion.copy(qq);
+}
 
 /* ===============================
    Roll
 ================================ */
+btn.onclick=()=>{ cheat=false; roll(); };
+cheatBtn.onclick=()=>{ cheat=true; roll(); };
+
 function roll(){
   result.textContent="";
+  settleFrames = 0;
+  pendingResult = true;
+  rollStartTime = performance.now();
+
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
-    b.position.set((i-1)*0.9,1.6,0);
-    b.velocity.set(
-      (Math.random()-0.5)*4,
-      1.5,
-      (Math.random()-0.5)*4
-    );
-    b.angularVelocity.set(
-      Math.random()*2,
-      Math.random()*2,
-      Math.random()*2
-    );
-  });
+    b.position.set((i-1)*0.9, 1.55, 0);
 
-  setTimeout(()=>{
-    const values=diceBodies.map(getDiceValue);
-    const role = isShonben() ? "ションベン" : "（判定中）";
-    result.textContent=`出目：${values.join(" , ")}\n役：${role}`;
-  },3000);
+    // 力は弱め（ご要望）
+    b.velocity.set(
+      (Math.random()-0.5)*3.2,
+      1.3,
+      (Math.random()-0.5)*3.2
+    );
+
+    // イカサマ時：最初から「1が上」方向に寄せて投げる（111を実質確定）
+    if(cheat){
+      setValueUpWithRandomYaw(b, 1);
+      // 回っているように見せるために回転は付ける（ただし強すぎない）
+      b.angularVelocity.set(
+        (Math.random()*2-1)*1.3,
+        (Math.random()*2-1)*1.0,
+        (Math.random()*2-1)*1.3
+      );
+    }else{
+      b.angularVelocity.set(
+        (Math.random()*2-1)*1.8,
+        (Math.random()*2-1)*1.8,
+        (Math.random()*2-1)*1.8
+      );
+    }
+  });
 }
 
 /* ===============================
-   Loop (重心イカサマ)
+   Loop
 ================================ */
+function finalizeResult(){
+  const values = diceBodies.map(getDiceValue);
+  const role = judgeRole(values);
+  result.textContent =
+    `出目：${values.join(" , ")}\n` +
+    `役：${role.name}\n` +
+    `説明：${role.desc}\n` +
+    `モード：${cheat ? "イカサマ" : "通常"}`;
+}
+
 function animate(){
   requestAnimationFrame(animate);
   world.step(1/60);
 
+  // 物理→描画同期
   diceBodies.forEach((b,i)=>{
+    // イカサマ補助：回転中に「1の面が上」に寄る弱い誘導（最終保証の後押し）
     if(cheat){
-      // 「1」が上を向きやすくなる弱いトルク
       const localUp = faceNormals[0].v; // 1の面
       const worldUp = new CANNON.Vec3(0,1,0);
       const current = b.quaternion.vmult(localUp);
       const axis = current.cross(worldUp);
-      b.torque.vadd(axis.scale(0.12), b.torque);
+      // 強すぎると“勝手に戻る感”が出るので弱め
+      b.torque.vadd(axis.scale(0.10), b.torque);
     }
 
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
 
+  // 「止まってから判定」→ 目のズレを潰す
+  if(pendingResult){
+    const allSettled = diceBodies.every(isBodySettled);
+
+    if(allSettled) settleFrames++;
+    else settleFrames = 0;
+
+    // 最大待機（詰まり対策）：6秒経過でも確定
+    const elapsed = performance.now() - rollStartTime;
+
+    if(settleFrames >= NEED_FRAMES || elapsed > 6000){
+      pendingResult = false;
+      finalizeResult();
+    }
+  }
+
   renderer.render(scene,camera);
 }
 animate();
+
+// 画面リサイズ対応
+addEventListener("resize", ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 </script>
 </body>
 </html>
