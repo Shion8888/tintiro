@@ -175,6 +175,33 @@ function getDiceValue(body){
 }
 
 /* ===============================
+   役判定
+================================ */
+function judgeRole(values){
+  const v=[...values].sort((a,b)=>a-b);
+
+  // ピンゾロ
+  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
+
+  // アラシ（ゾロ目）
+  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
+
+  // シゴロ
+  if(v.join("")==="456") return "シゴロ";
+
+  // ヒフミ
+  if(v.join("")==="123") return "ヒフミ";
+
+  // 目あり
+  if(v[0]===v[1] || v[1]===v[2]) {
+    const eye = v[0]===v[1] ? v[2] : v[0];
+    return `${eye}の目`;
+  }
+
+  return "役なし";
+}
+
+/* ===============================
    Roll
 ================================ */
 btn.onclick=()=>{
@@ -196,7 +223,8 @@ btn.onclick=()=>{
 
   setTimeout(()=>{
     const values=diceBodies.map(getDiceValue);
-    result.textContent=`出目：${values.join(" , ")}`;
+    const role=judgeRole(values);
+    result.textContent=`出目：${values.join(" , ")}\n役：${role}`;
   },3000);
 };
 
