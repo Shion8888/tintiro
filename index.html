@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – True 456 Dice FIX</title>
+<title>Chinchiro – True 456 Dice (Fixed)</title>
 
 <style>
 body {
@@ -55,7 +55,7 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   Dice texture
+   Dice texture (1〜6 完全対応)
 ================================ */
 function createDiceTexture(n){
   const c=document.createElement("canvas");
@@ -73,6 +73,9 @@ function createDiceTexture(n){
     mc:[128,128]
   };
   const map={
+    1:["mc"],
+    2:["tl","br"],
+    3:["tl","mc","br"],
     4:["tl","tr","bl","br"],
     5:["tl","tr","mc","bl","br"],
     6:["tl","ml","bl","tr","mr","br"]
@@ -84,25 +87,6 @@ function createDiceTexture(n){
   });
   return new THREE.CanvasTexture(c);
 }
-
-/* ===============================
-   Materials
-================================ */
-// 通常サイ
-const normalMaterials=[
-  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
-];
-
-// 456サイ（完全固定）
-const cheatFaces=[4,5,6,4,5,6];
-const cheatMaterials=cheatFaces.map(v =>
-  new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
-);
 
 /* ===============================
    Scene / World
@@ -119,7 +103,7 @@ const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
+scene.add(new THREE.AmbientLight(0xffffff,0.9));
 
 const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
@@ -151,20 +135,31 @@ scene.add(rim);
 /* ===============================
    Dice
 ================================ */
-const diceMeshes=[],diceBodies=[];
+const diceMeshes=[], diceBodies=[];
 const faceDirs=[
-  new CANNON.Vec3(1,0,0),
-  new CANNON.Vec3(-1,0,0),
-  new CANNON.Vec3(0,1,0),
-  new CANNON.Vec3(0,-1,0),
-  new CANNON.Vec3(0,0,1),
-  new CANNON.Vec3(0,0,-1),
+  new CANNON.Vec3( 1, 0, 0),
+  new CANNON.Vec3(-1, 0, 0),
+  new CANNON.Vec3( 0, 1, 0),
+  new CANNON.Vec3( 0,-1, 0),
+  new CANNON.Vec3( 0, 0, 1),
+  new CANNON.Vec3( 0, 0,-1),
 ];
 
-for(let i=0;i<3;i++){
+// 通常サイ
+const normalFaces=[2,5,1,6,3,4];
+// 456サイ（完全別物）
+const cheatFaces =[4,5,6,4,5,6];
+
+let currentFaces = normalFaces;
+
+function createDice(){
+  const materials = currentFaces.map(v =>
+    new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
+  );
+
   const mesh=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
-    normalMaterials
+    materials
   );
   scene.add(mesh);
   diceMeshes.push(mesh);
@@ -178,42 +173,42 @@ for(let i=0;i<3;i++){
   diceBodies.push(body);
 }
 
+for(let i=0;i<3;i++) createDice();
+
 /* ===============================
    判定
 ================================ */
-let cheat=false;
-
 function getDiceValue(i){
   const body=diceBodies[i];
-  const faces=cheat ? cheatFaces : [2,5,1,6,3,4];
   let best=-1e9,val=0;
   faceDirs.forEach((d,idx)=>{
     const w=body.quaternion.vmult(d);
     const dot=w.dot(new CANNON.Vec3(0,1,0));
-    if(dot>best){best=dot;val=faces[idx];}
+    if(dot>best){best=dot;val=currentFaces[idx];}
   });
   return val;
-}
-
-function judgeRole(values){
-  if(cheat) return "シゴロ（456サイ）";
-  const v=[...values].sort((a,b)=>a-b);
-  if(v.join("")==="456") return "シゴロ";
-  return "役なし";
 }
 
 /* ===============================
    Control
 ================================ */
+let cheat=false;
+
 btn.onclick=()=>{
   cheat=false;
-  diceMeshes.forEach(m=>m.material=normalMaterials);
+  currentFaces=normalFaces;
+  diceMeshes.forEach((m,i)=>{
+    m.material = normalFaces.map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}));
+  });
   roll();
 };
 
 cheatBtn.onclick=()=>{
   cheat=true;
-  diceMeshes.forEach(m=>m.material=cheatMaterials);
+  currentFaces=cheatFaces;
+  diceMeshes.forEach((m,i)=>{
+    m.material = cheatFaces.map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}));
+  });
   roll();
 };
 
@@ -230,7 +225,7 @@ function roll(){
       3.0,
       (Math.random()-0.5)*3
     );
-    // 🔥 回転を派手に
+    // 🔥 派手に回す
     b.angularVelocity.set(
       (Math.random()*2-1)*6,
       (Math.random()*2-1)*6,
@@ -240,9 +235,8 @@ function roll(){
 
   setTimeout(()=>{
     const values=[0,1,2].map(getDiceValue);
-    const role=judgeRole(values);
     result.textContent=
-      `出目：${values.join(" , ")}\n役：${role}\nモード：${cheat?"456サイ":"通常"}`;
+      `出目：${values.join(" , ")}\nモード：${cheat?"456サイ":"通常"}`;
   },3000);
 }
 
