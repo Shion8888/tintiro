@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – 456 Cheat Dice</title>
+<title>Chinchiro – True 456 Dice</title>
 
 <style>
 body {
@@ -68,15 +68,13 @@ function createDiceTexture(n){
   const r=18;
   const p={
     tl:[64,64], tr:[192,64],
-    ml:[64,128], mr:[192,128],
     bl:[64,192], br:[192,192],
     mc:[128,128]
   };
   const map={
-    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
     4:["tl","tr","bl","br"],
     5:["tl","tr","mc","bl","br"],
-    6:["tl","ml","bl","tr","mr","br"]
+    6:["tl","bl","tr","br","mc"] // 見た目用（簡略）
   };
   map[n].forEach(k=>{
     ctx.beginPath();
@@ -84,27 +82,6 @@ function createDiceTexture(n){
     ctx.fill();
   });
   return new THREE.CanvasTexture(c);
-}
-
-/* ===============================
-   Materials
-================================ */
-// 通常サイコロ
-const normalMaterials=[
-  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
-];
-
-// 456サイ（全6面が4/5/6）
-function create456Materials(){
-  return Array.from({length:6},()=>{
-    const v=[4,5,6][Math.floor(Math.random()*3)];
-    return new THREE.MeshStandardMaterial({map:createDiceTexture(v)});
-  });
 }
 
 /* ===============================
@@ -136,10 +113,9 @@ floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
 /* ===============================
-   Bowl (Donburi)
+   Bowl
 ================================ */
 const R=6;
-
 const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
@@ -158,73 +134,65 @@ scene.add(rim);
 /* ===============================
    Dice
 ================================ */
-const diceMeshes=[],diceBodies=[];
-for(let i=0;i<3;i++){
+const diceMeshes=[], diceBodies=[], diceFaceValues=[];
+
+// 面の向き（固定）
+const faceDirs=[
+  new CANNON.Vec3( 1, 0, 0), // +X
+  new CANNON.Vec3(-1, 0, 0), // -X
+  new CANNON.Vec3( 0, 1, 0), // +Y
+  new CANNON.Vec3( 0,-1, 0), // -Y
+  new CANNON.Vec3( 0, 0, 1), // +Z
+  new CANNON.Vec3( 0, 0,-1), // -Z
+];
+
+function createDice(faceValues){
+  const materials = faceValues.map(v =>
+    new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
+  );
+
   const mesh=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
-    normalMaterials
+    materials
   );
   scene.add(mesh);
   diceMeshes.push(mesh);
 
-  const body=new CANNON.Body({
-    mass:1,
-    angularDamping:0.25
-  });
+  const body=new CANNON.Body({mass:1, angularDamping:0.25});
   body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
   world.addBody(body);
   diceBodies.push(body);
+
+  diceFaceValues.push(faceValues);
+}
+
+/* 通常サイ（参考用） */
+const normalFace=[2,5,1,6,3,4];
+
+/* 456サイ（完全に別物） */
+const cheatFace=[4,5,6,4,5,6];
+
+for(let i=0;i<3;i++){
+  createDice(normalFace);
 }
 
 /* ===============================
-   Face normals
+   Get value (完全一致)
 ================================ */
-const faceNormals=[
-  {value:1,v:new CANNON.Vec3(0,1,0)},
-  {value:6,v:new CANNON.Vec3(0,-1,0)},
-  {value:2,v:new CANNON.Vec3(1,0,0)},
-  {value:5,v:new CANNON.Vec3(-1,0,0)},
-  {value:3,v:new CANNON.Vec3(0,0,1)},
-  {value:4,v:new CANNON.Vec3(0,0,-1)},
-];
-
-function getDiceValue(body){
+function getDiceValue(i){
+  const body=diceBodies[i];
   const up=new CANNON.Vec3(0,1,0);
-  let max=-1e9,res=1;
-  for(const f of faceNormals){
-    const w=body.quaternion.vmult(f.v);
+  let best=-1e9, value=0;
+
+  faceDirs.forEach((dir,idx)=>{
+    const w=body.quaternion.vmult(dir);
     const d=w.dot(up);
-    if(d>max){max=d;res=f.value;}
-  }
-  return res;
-}
-
-/* ===============================
-   Shonben
-================================ */
-function isShonben(){
-  return diceBodies.some(b=>{
-    const x=b.position.x;
-    const z=b.position.z;
-    return Math.sqrt(x*x+z*z)>R;
+    if(d>best){
+      best=d;
+      value=diceFaceValues[i][idx];
+    }
   });
-}
-
-/* ===============================
-   Role Judge
-================================ */
-function judgeRole(values){
-  if(isShonben()) return "ションベン";
-
-  const v=[...values].sort((a,b)=>a-b);
-  if(v.join("")==="456") return "シゴロ";
-  if(v[0]===v[1]&&v[1]===v[2]) return "アラシ";
-  if(v.join("")==="123") return "ヒフミ";
-  if(v[0]===v[1]||v[1]===v[2]){
-    const eye=v[0]===v[1]?v[2]:v[0];
-    return `${eye}の目`;
-  }
-  return "役なし";
+  return value;
 }
 
 /* ===============================
@@ -234,13 +202,19 @@ let cheat=false;
 
 btn.onclick=()=>{
   cheat=false;
-  diceMeshes.forEach(m=>m.material=normalMaterials);
+  diceMeshes.forEach((m,i)=>{
+    m.material = normalFace.map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}));
+    diceFaceValues[i]=normalFace;
+  });
   roll();
 };
 
 cheatBtn.onclick=()=>{
   cheat=true;
-  diceMeshes.forEach(m=>m.material=create456Materials());
+  diceMeshes.forEach((m,i)=>{
+    m.material = cheatFace.map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}));
+    diceFaceValues[i]=cheatFace;
+  });
   roll();
 };
 
@@ -253,22 +227,20 @@ function roll(){
     b.wakeUp();
     b.position.set((i-1)*0.9,3.2,0);
     b.velocity.set(
-      (Math.random()-0.5)*3,
+      (Math.random()-0.5)*8,
       2.8,
-      (Math.random()-0.5)*3
+      (Math.random()-0.5)*8
     );
     b.angularVelocity.set(
-      (Math.random()*2-1)*1.8,
-      (Math.random()*2-1)*1.8,
-      (Math.random()*2-1)*1.8
+      (Math.random()*2-1)*3.6,
+      (Math.random()*2-1)*3.6,
+      (Math.random()*2-1)*3.6
     );
   });
 
   setTimeout(()=>{
-    const values=diceBodies.map(getDiceValue);
-    const role=judgeRole(values);
-    result.textContent=
-      `出目：${values.join(" , ")}\n役：${role}\nモード：${cheat?"456サイ":"通常"}`;
+    const values=[0,1,2].map(getDiceValue);
+    result.textContent=`出目：${values.join(" , ")}\nモード：${cheat?"456サイ":"通常"}`;
   },3000);
 }
 
