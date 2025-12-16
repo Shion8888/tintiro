@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Physics Based</title>
+<title>Chinchiro – Cheat Mode</title>
 
 <style>
 body {
@@ -13,18 +13,28 @@ body {
   color: #fff;
   font-family: system-ui, sans-serif;
 }
-#btn {
+#ui {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 14px 28px;
-  font-size: 18px;
+  display: flex;
+  gap: 12px;
+}
+button {
+  padding: 14px 22px;
+  font-size: 16px;
   border-radius: 12px;
   border: none;
-  background: #ffcc00;
   font-weight: bold;
   cursor: pointer;
+}
+#btn {
+  background: #ffcc00;
+}
+#cheatBtn {
+  background: #ff4444;
+  color: #fff;
 }
 #result {
   position: fixed;
@@ -40,55 +50,17 @@ body {
 <body>
 
 <div id="result"></div>
-<button id="btn">サイコロを振る</button>
+<div id="ui">
+  <button id="btn">サイコロを振る</button>
+  <button id="cheatBtn">🎲 イカサマ</button>
+</div>
 
 <script type="module">
 import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   Dice texture
-================================ */
-function createDiceTexture(n){
-  const c=document.createElement("canvas");
-  c.width=c.height=256;
-  const ctx=c.getContext("2d");
-  ctx.fillStyle="#fff";
-  ctx.fillRect(0,0,256,256);
-  ctx.fillStyle="#000";
-
-  const r=18;
-  const p={
-    tl:[64,64], tr:[192,64],
-    ml:[64,128], mr:[192,128],
-    bl:[64,192], br:[192,192],
-    mc:[128,128]
-  };
-  const map={
-    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
-    4:["tl","tr","bl","br"],
-    5:["tl","tr","mc","bl","br"],
-    6:["tl","ml","bl","tr","mr","br"]
-  };
-  map[n].forEach(k=>{
-    ctx.beginPath();
-    ctx.arc(...p[k],r,0,Math.PI*2);
-    ctx.fill();
-  });
-  return new THREE.CanvasTexture(c);
-}
-
-const materials=[
-  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
-  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
-];
-
-/* ===============================
-   Three / Cannon
+   基本セットアップ
 ================================ */
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x222222);
@@ -108,18 +80,14 @@ const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 
 /* ===============================
-   Floor
+   Floor & Bowl
 ================================ */
 const floor=new CANNON.Body({mass:0});
 floor.addShape(new CANNON.Plane());
 floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
-/* ===============================
-   Bowl (Donburi)
-================================ */
-const R = 6;
-
+const R=6;
 const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
@@ -139,11 +107,11 @@ scene.add(rim);
    Dice
 ================================ */
 const diceMeshes=[],diceBodies=[];
+const geom=new THREE.BoxGeometry(0.6,0.6,0.6);
+const mat=new THREE.MeshStandardMaterial({color:0xffffff});
+
 for(let i=0;i<3;i++){
-  const mesh=new THREE.Mesh(
-    new THREE.BoxGeometry(0.6,0.6,0.6),
-    materials
-  );
+  const mesh=new THREE.Mesh(geom,mat);
   scene.add(mesh);
   diceMeshes.push(mesh);
 
@@ -179,48 +147,41 @@ function getDiceValue(body){
 }
 
 /* ===============================
-   Shonben check
+   イカサマ制御
 ================================ */
-function isShonben(){
-  return diceBodies.some(b=>{
-    const x=b.position.x;
-    const z=b.position.z;
-    return Math.sqrt(x*x + z*z) > R;
-  });
-}
+let cheatMode=false;
 
-/* ===============================
-   Role Judge
-================================ */
-function judgeRole(values){
-  if(isShonben()) return "ションベン";
+cheatBtn.onclick=()=>{
+  cheatMode=true;
+  roll();
+};
 
-  const v=[...values].sort((a,b)=>a-b);
+btn.onclick=()=>{
+  cheatMode=false;
+  roll();
+};
 
-  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
-  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
-  if(v.join("")==="456") return "シゴロ";
-  if(v.join("")==="123") return "ヒフミ";
-
-  if(v[0]===v[1] || v[1]===v[2]) {
-    const eye = v[0]===v[1] ? v[2] : v[0];
-    return `${eye}の目`;
-  }
-  return "役なし";
+function forceDiceValue(body,value){
+  const f=faceNormals.find(f=>f.value===value);
+  const q=new CANNON.Quaternion();
+  q.setFromVectors(f.v,new CANNON.Vec3(0,1,0));
+  body.quaternion.copy(q);
+  body.angularVelocity.setZero();
+  body.velocity.setZero();
 }
 
 /* ===============================
    Roll
 ================================ */
-btn.onclick=()=>{
+function roll(){
   result.textContent="";
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
     b.position.set((i-1)*0.9,1.8,0);
     b.velocity.set(
-      (Math.random()-0.5)*6,
+      (Math.random()-0.5)*12,
       2.5,
-      (Math.random()-0.5)*6
+      (Math.random()-0.5)*12
     );
     b.angularVelocity.set(
       Math.random()*8,
@@ -230,11 +191,21 @@ btn.onclick=()=>{
   });
 
   setTimeout(()=>{
+    if(cheatMode){
+      // シゴロ以上をランダム選択
+      const patterns=[
+        [4,5,6], // シゴロ
+        [1,1,1], // ピンゾロ
+        [3,3,3], // アラシ例
+      ];
+      const target=patterns[Math.floor(Math.random()*patterns.length)];
+      diceBodies.forEach((b,i)=>forceDiceValue(b,target[i]));
+    }
+
     const values=diceBodies.map(getDiceValue);
-    const role=judgeRole(values);
-    result.textContent=`出目：${values.join(" , ")}\n役：${role}`;
+    result.textContent=`出目：${values.join(" , ")}\n（${cheatMode?"イカサマ":"通常"}）`;
   },3000);
-};
+}
 
 /* ===============================
    Loop
