@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Final</title>
+<title>Chinchiro – Natural Cheat</title>
 
 <style>
 body {
@@ -124,20 +124,10 @@ floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
 const R=6;
-const inner=new THREE.Mesh(
+scene.add(new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
-);
-inner.rotation.x=-Math.PI/2;
-scene.add(inner);
-
-const rim=new THREE.Mesh(
-  new THREE.RingGeometry(R-0.3,R,64),
-  new THREE.MeshStandardMaterial({color:0xff0000})
-);
-rim.rotation.x=-Math.PI/2;
-rim.position.y=0.01;
-scene.add(rim);
+)).rotation.x=-Math.PI/2;
 
 /* ===============================
    Dice
@@ -153,8 +143,9 @@ for(let i=0;i<3;i++){
 
   const body=new CANNON.Body({
     mass:1,
-    shape:new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3))
+    angularDamping:0.15
   });
+  body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
   world.addBody(body);
   diceBodies.push(body);
 }
@@ -163,7 +154,7 @@ for(let i=0;i<3;i++){
    Face normals
 ================================ */
 const faceNormals=[
-  {value:1,v:new CANNON.Vec3(0,1,0)},
+  {value:1,v:new CANNON.Vec3(0,1,0)}, // ← これを上にしたい
   {value:6,v:new CANNON.Vec3(0,-1,0)},
   {value:2,v:new CANNON.Vec3(1,0,0)},
   {value:5,v:new CANNON.Vec3(-1,0,0)},
@@ -171,121 +162,53 @@ const faceNormals=[
   {value:4,v:new CANNON.Vec3(0,0,-1)},
 ];
 
-function getDiceValue(body){
-  const up=new CANNON.Vec3(0,1,0);
-  let max=-1e9,res=1;
-  for(const f of faceNormals){
-    const w=body.quaternion.vmult(f.v);
-    const d=w.dot(up);
-    if(d>max){max=d;res=f.value;}
-  }
-  return res;
-}
-
-/* ===============================
-   Shonben
-================================ */
-function isShonben(){
-  return diceBodies.some(b=>{
-    const x=b.position.x;
-    const z=b.position.z;
-    return Math.sqrt(x*x+z*z)>R;
-  });
-}
-
-/* ===============================
-   Role judge + explanation
-================================ */
-function judgeRole(values){
-  if(isShonben()){
-    return {name:"ションベン", desc:"サイコロがドンブリの外に出た"};
-  }
-
-  const v=[...values].sort((a,b)=>a-b);
-
-  if(v[0]===1&&v[1]===1&&v[2]===1)
-    return {name:"ピンゾロ", desc:"最強役・即勝ち"};
-
-  if(v[0]===v[1]&&v[1]===v[2])
-    return {name:"アラシ", desc:"ゾロ目の強役"};
-
-  if(v.join("")==="456")
-    return {name:"シゴロ", desc:"高目の定番役"};
-
-  if(v.join("")==="123")
-    return {name:"ヒフミ", desc:"最弱役"};
-
-  if(v[0]===v[1]||v[1]===v[2]){
-    const eye=v[0]===v[1]?v[2]:v[0];
-    return {name:`${eye}の目`, desc:`${eye}で勝負`};
-  }
-
-  return {name:"役なし", desc:"無効"};
-}
-
 /* ===============================
    Cheat control
 ================================ */
 let cheat=false;
-btn.onclick=()=>{cheat=false;roll();};
-cheatBtn.onclick=()=>{cheat=true;roll();};
+btn.onclick=()=>{cheat=false; roll();};
+cheatBtn.onclick=()=>{cheat=true; roll();};
 
-function forceDiceValue(body,value){
-  const f=faceNormals.find(f=>f.value===value);
-  const q=new CANNON.Quaternion();
-  q.setFromVectors(f.v,new CANNON.Vec3(0,1,0));
-  body.quaternion.copy(q);
-  body.velocity.setZero();
-  body.angularVelocity.setZero();
-}
-
-/* ===============================
-   Roll
-================================ */
 function roll(){
   result.textContent="";
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
-    b.position.set((i-1)*0.9,1.6,0);
+    b.position.set((i-1)*0.9,1.5,0);
     b.velocity.set(
-      (Math.random()-0.5)*8,
-      1.5,
-      (Math.random()-0.5)*8
+      (Math.random()-0.5)*3,
+      1.2,
+      (Math.random()-0.5)*3
     );
     b.angularVelocity.set(
-      Math.random()*2.5,
-      Math.random()*2.5,
-      Math.random()*2.5
+      Math.random()*2,
+      Math.random()*2,
+      Math.random()*2
     );
   });
-
-  setTimeout(()=>{
-    if(cheat){
-      const patterns=[[4,5,6],[1,1,1],[3,3,3]];
-      const t=patterns[Math.floor(Math.random()*patterns.length)];
-      diceBodies.forEach((b,i)=>forceDiceValue(b,t[i]));
-    }
-
-    const values=diceBodies.map(getDiceValue);
-    const role=judgeRole(values);
-
-    result.textContent=
-      `出目：${values.join(" , ")}\n`+
-      `役：${role.name}\n`+
-      `説明：${role.desc}`;
-  },3000);
 }
 
 /* ===============================
-   Loop
+   Animate (natural cheat)
 ================================ */
 function animate(){
   requestAnimationFrame(animate);
   world.step(1/60);
+
   diceBodies.forEach((b,i)=>{
+    if(cheat){
+      // 「1の面」が上を向くように弱く誘導
+      const localUp = faceNormals[0].v; // value=1
+      const worldUp = new CANNON.Vec3(0,1,0);
+      const current = b.quaternion.vmult(localUp);
+
+      const axis = current.cross(worldUp);
+      b.torque.vadd(axis.scale(0.15), b.torque);
+    }
+
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
+
   renderer.render(scene,camera);
 }
 animate();
