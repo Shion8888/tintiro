@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Cheat Dice</title>
+<title>Chinchiro – Final</title>
 
 <style>
 body {
@@ -36,7 +36,7 @@ button {
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 22px;
+  font-size: 20px;
   text-align: center;
   white-space: pre;
 }
@@ -55,7 +55,7 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   Dice texture（目）
+   Dice texture
 ================================ */
 function createDiceTexture(n){
   const c=document.createElement("canvas");
@@ -86,14 +86,13 @@ function createDiceTexture(n){
   return new THREE.CanvasTexture(c);
 }
 
-/* Three.js の BoxGeometry の面順に合わせたマテリアル */
 const diceMaterials=[
-  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}), // +X
-  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}), // -X
-  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}), // +Y
-  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}), // -Y
-  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}), // +Z
-  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}), // -Z
+  new THREE.MeshStandardMaterial({map:createDiceTexture(2)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(5)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(1)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(6)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(3)}),
+  new THREE.MeshStandardMaterial({map:createDiceTexture(4)}),
 ];
 
 /* ===============================
@@ -174,22 +173,62 @@ const faceNormals=[
 
 function getDiceValue(body){
   const up=new CANNON.Vec3(0,1,0);
-  let max=-1e9,result=1;
+  let max=-1e9,res=1;
   for(const f of faceNormals){
     const w=body.quaternion.vmult(f.v);
     const d=w.dot(up);
-    if(d>max){max=d;result=f.value;}
+    if(d>max){max=d;res=f.value;}
   }
-  return result;
+  return res;
 }
 
 /* ===============================
-   イカサマ制御
+   Shonben
 ================================ */
-let cheatMode=false;
+function isShonben(){
+  return diceBodies.some(b=>{
+    const x=b.position.x;
+    const z=b.position.z;
+    return Math.sqrt(x*x+z*z)>R;
+  });
+}
 
-btn.onclick=()=>{ cheatMode=false; roll(); };
-cheatBtn.onclick=()=>{ cheatMode=true; roll(); };
+/* ===============================
+   Role judge + explanation
+================================ */
+function judgeRole(values){
+  if(isShonben()){
+    return {name:"ションベン", desc:"サイコロがドンブリの外に出た"};
+  }
+
+  const v=[...values].sort((a,b)=>a-b);
+
+  if(v[0]===1&&v[1]===1&&v[2]===1)
+    return {name:"ピンゾロ", desc:"最強役・即勝ち"};
+
+  if(v[0]===v[1]&&v[1]===v[2])
+    return {name:"アラシ", desc:"ゾロ目の強役"};
+
+  if(v.join("")==="456")
+    return {name:"シゴロ", desc:"高目の定番役"};
+
+  if(v.join("")==="123")
+    return {name:"ヒフミ", desc:"最弱役"};
+
+  if(v[0]===v[1]||v[1]===v[2]){
+    const eye=v[0]===v[1]?v[2]:v[0];
+    return {name:`${eye}の目`, desc:`${eye}で勝負`};
+  }
+
+  return {name:"役なし", desc:"無効"};
+}
+
+/* ===============================
+   Cheat control
+================================ */
+let cheat=false;
+btn.onclick=()=>{cheat=false;roll();};
+cheatBtn.onclick=()=>{cheat=true;roll();};
 
 function forceDiceValue(body,value){
   const f=faceNormals.find(f=>f.value===value);
@@ -207,24 +246,33 @@ function roll(){
   result.textContent="";
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
-    b.position.set((i-1)*0.9,1.8,0);
-    b.velocity.set((Math.random()-0.5)*12,2.5,(Math.random()-0.5)*12);
-    b.angularVelocity.set(Math.random()*8,Math.random()*8,Math.random()*8);
+    b.position.set((i-1)*0.9,1.6,0);
+    b.velocity.set(
+      (Math.random()-0.5)*4,
+      1.5,
+      (Math.random()-0.5)*4
+    );
+    b.angularVelocity.set(
+      Math.random()*2.5,
+      Math.random()*2.5,
+      Math.random()*2.5
+    );
   });
 
   setTimeout(()=>{
-    if(cheatMode){
-      const patterns=[
-        [4,5,6], // シゴロ
-        [1,1,1], // ピンゾロ
-        [3,3,3], // アラシ
-      ];
-      const target=patterns[Math.floor(Math.random()*patterns.length)];
-      diceBodies.forEach((b,i)=>forceDiceValue(b,target[i]));
+    if(cheat){
+      const patterns=[[4,5,6],[1,1,1],[3,3,3]];
+      const t=patterns[Math.floor(Math.random()*patterns.length)];
+      diceBodies.forEach((b,i)=>forceDiceValue(b,t[i]));
     }
 
     const values=diceBodies.map(getDiceValue);
-    result.textContent=`出目：${values.join(" , ")}\n${cheatMode?"🎭 イカサマ":"通常"}`;
+    const role=judgeRole(values);
+
+    result.textContent=
+      `出目：${values.join(" , ")}\n`+
+      `役：${role.name}\n`+
+      `説明：${role.desc}`;
   },3000);
 }
 
