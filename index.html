@@ -173,7 +173,7 @@ function createDice(){
 for(let i=0;i<3;i++) createDice();
 
 /* ===============================
-   判定
+   判定系
 ================================ */
 function getDiceValue(i){
   const body=diceBodies[i];
@@ -190,8 +190,23 @@ function isShonben(){
   return diceBodies.some(b=>{
     const x=b.position.x;
     const z=b.position.z;
-    return Math.sqrt(x*x+z*z)>R;
+    return Math.sqrt(x*x+z*z) > R;
   });
+}
+
+function judgeRole(values){
+  const v=[...values].sort((a,b)=>a-b);
+
+  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
+  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
+  if(v.join("")==="456") return "シゴロ";
+  if(v.join("")==="123") return "ヒフミ";
+
+  if(v[0]===v[1] || v[1]===v[2]){
+    const eye = v[0]===v[1] ? v[2] : v[0];
+    return `${eye}の目`;
+  }
+  return "役なし";
 }
 
 /* ===============================
@@ -275,10 +290,17 @@ function roll(){
 
   setTimeout(()=>{
     const values=[0,1,2].map(getDiceValue);
-    const shonbenResult=isShonben();
-    result.textContent=
-      `出目：${values.join(" , ")}\n`+
-      `役：${shonbenResult?"ションベン":cheat?"シゴロ（456サイ）":"通常"}`;
+
+    // 🔥 最優先：物理的ションベン
+    if(isShonben()){
+      result.textContent =
+        `出目：${values.join(" , ")}\n役：ションベン`;
+      return;
+    }
+
+    const role = judgeRole(values);
+    result.textContent =
+      `出目：${values.join(" , ")}\n役：${role}`;
   },3000);
 }
 
