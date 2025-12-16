@@ -107,15 +107,19 @@ scene.add(new THREE.AmbientLight(0xffffff,0.7));
 const world=new CANNON.World();
 world.gravity.set(0,-9.82,0);
 
+/* ===============================
+   Floor
+================================ */
 const floor=new CANNON.Body({mass:0});
 floor.addShape(new CANNON.Plane());
 floor.quaternion.setFromEuler(-Math.PI/2,0,0);
 world.addBody(floor);
 
 /* ===============================
-   Bowl
+   Bowl (Donburi)
 ================================ */
-const R=6;
+const R = 6;
+
 const inner=new THREE.Mesh(
   new THREE.CircleGeometry(R-0.3,64),
   new THREE.MeshStandardMaterial({color:0x8b5a2b})
@@ -175,29 +179,33 @@ function getDiceValue(body){
 }
 
 /* ===============================
-   役判定
+   Shonben check
+================================ */
+function isShonben(){
+  return diceBodies.some(b=>{
+    const x=b.position.x;
+    const z=b.position.z;
+    return Math.sqrt(x*x + z*z) > R;
+  });
+}
+
+/* ===============================
+   Role Judge
 ================================ */
 function judgeRole(values){
+  if(isShonben()) return "ションベン";
+
   const v=[...values].sort((a,b)=>a-b);
 
-  // ピンゾロ
   if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
-
-  // アラシ（ゾロ目）
   if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
-
-  // シゴロ
   if(v.join("")==="456") return "シゴロ";
-
-  // ヒフミ
   if(v.join("")==="123") return "ヒフミ";
 
-  // 目あり
   if(v[0]===v[1] || v[1]===v[2]) {
     const eye = v[0]===v[1] ? v[2] : v[0];
     return `${eye}の目`;
   }
-
   return "役なし";
 }
 
