@@ -57,6 +57,23 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
+   🔊 Dice Sounds（交互再生）
+================================ */
+const diceSounds = [
+  new Audio("ガラスでチンチロリン1.mp3"),
+  new Audio("ガラスでチンチロリン2.mp3")
+];
+diceSounds.forEach(s => s.volume = 0.6);
+let diceSoundIndex = 0;
+
+function playDiceSound(){
+  const sound = diceSounds[diceSoundIndex];
+  sound.currentTime = 0;
+  sound.play();
+  diceSoundIndex = (diceSoundIndex + 1) % diceSounds.length;
+}
+
+/* ===============================
    Dice Texture
 ================================ */
 function createDiceTexture(n){
@@ -187,7 +204,6 @@ function getDiceValue(i){
 }
 
 function isShonben(){
-  // 最終的に外に残っているかどうか
   return diceBodies.some(b=>{
     const x=b.position.x;
     const z=b.position.z;
@@ -211,7 +227,6 @@ function judgeRole(values){
 }
 
 function isStopped(){
-  // 「止まった」とみなす閾値（小さすぎると永遠に止まらないので注意）
   return diceBodies.every(b =>
     b.velocity.length() < 0.07 &&
     b.angularVelocity.length() < 0.07
@@ -258,10 +273,11 @@ function updateDiceMaterial(){
    Roll
 ================================ */
 function roll(){
+  playDiceSound(); // 🔊 交互に音を鳴らす
+
   result.textContent="…判定中";
   waitingForResult=true;
 
-  // ションベン演出で外に飛ばすサイコロを1個だけ決める
   const shonbenIndex = shonben
     ? Math.floor(Math.random()*diceBodies.length)
     : -1;
@@ -271,16 +287,13 @@ function roll(){
 
     if(shonben){
       b.position.set((i-1)*0.9,4.2,0);
-
       if(i===shonbenIndex){
-        // 💦 1個だけ外へ（強すぎると3個飛ぶので控えめ）
         b.velocity.set(
           (Math.random()<0.5?-1:1)*(5.4+Math.random()*0.8),
           3.8,
           (Math.random()-0.5)*2.0
         );
       } else {
-        // 残り2個は内側に収まりやすい
         b.velocity.set(
           (Math.random()-0.5)*2.2,
           2.8,
@@ -296,7 +309,6 @@ function roll(){
       );
     }
 
-    // 回転
     b.angularVelocity.set(
       (Math.random()*2-1)*6,
       (Math.random()*2-1)*6,
@@ -317,19 +329,14 @@ function animate(){
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
 
-  // ✅ 「止まってから」1回だけ結果確定（ここが肝）
   if(waitingForResult && isStopped()){
     waitingForResult=false;
-
     const values=[0,1,2].map(getDiceValue);
 
     if(isShonben()){
-      result.textContent =
-        `出目：${values.join(" , ")}\n役：ションベン`;
+      result.textContent=`出目：${values.join(" , ")}\n役：ションベン`;
     } else {
-      const role = judgeRole(values);
-      result.textContent =
-        `出目：${values.join(" , ")}\n役：${role}`;
+      result.textContent=`出目：${values.join(" , ")}\n役：${judgeRole(values)}`;
     }
   }
 
