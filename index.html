@@ -57,31 +57,231 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   🔊 Dice Sounds（相対パス明示）
+   🔊 Dice Sound（ここだけ追加）
 ================================ */
 const diceSounds = [
   new Audio("./ガラスでチンチロリン1.mp3"),
   new Audio("./ガラスでチンチロリン2.mp3")
 ];
-diceSounds.forEach(s => s.preload = "auto");
+diceSounds.forEach(s => {
+  s.preload = "auto";
+  s.volume = 0.6;
+});
 let diceSoundIndex = 0;
 
 function playDiceSound(){
   const s = diceSounds[diceSoundIndex];
-  s.currentTime = 0;
-  s.play().catch(e => console.warn("sound error", e));
+  try {
+    s.currentTime = 0;
+    s.play();
+  } catch(e) {
+    console.warn("sound error", e);
+  }
   diceSoundIndex = (diceSoundIndex + 1) % diceSounds.length;
 }
 
 /* ===============================
-   （以下、元コードそのまま）
+   Dice Texture
 ================================ */
+function createDiceTexture(n){
+  const c=document.createElement("canvas");
+  c.width=c.height=256;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#ddd";
+  ctx.fillRect(0,0,256,256);
+  ctx.fillStyle="#000";
 
-/* 途中省略せず、そのまま使用してください */
-/* roll() の最初だけ音を追加 */
+  const r=18;
+  const p={
+    tl:[64,64], tr:[192,64],
+    ml:[64,128], mr:[192,128],
+    bl:[64,192], br:[192,192],
+    mc:[128,128]
+  };
+  const map={
+    1:["mc"],
+    2:["tl","br"],
+    3:["tl","mc","br"],
+    4:["tl","tr","bl","br"],
+    5:["tl","tr","mc","bl","br"],
+    6:["tl","ml","bl","tr","mr","br"]
+  };
+  map[n].forEach(k=>{
+    ctx.beginPath();
+    ctx.arc(...p[k],r,0,Math.PI*2);
+    ctx.fill();
+  });
+  return new THREE.CanvasTexture(c);
+}
 
+/* ===============================
+   Scene / World
+================================ */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x222222);
+
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
+camera.position.set(0,15,0);
+camera.lookAt(0,0,0);
+camera.up.set(0,0,-1);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.9));
+
+const world=new CANNON.World();
+world.gravity.set(0,-9.82,0);
+
+/* ===============================
+   Floor & Bowl
+================================ */
+const floor=new CANNON.Body({mass:0});
+floor.addShape(new CANNON.Plane());
+floor.quaternion.setFromEuler(-Math.PI/2,0,0);
+world.addBody(floor);
+
+const R=6;
+const inner=new THREE.Mesh(
+  new THREE.CircleGeometry(R-0.3,64),
+  new THREE.MeshStandardMaterial({color:0x8b5a2b})
+);
+inner.rotation.x=-Math.PI/2;
+scene.add(inner);
+
+const rim=new THREE.Mesh(
+  new THREE.RingGeometry(R-0.3,R,64),
+  new THREE.MeshStandardMaterial({color:0xff0000})
+);
+rim.rotation.x=-Math.PI/2;
+rim.position.y=0.01;
+scene.add(rim);
+
+/* ===============================
+   Dice
+================================ */
+const diceMeshes=[], diceBodies=[];
+const faceDirs=[
+  new CANNON.Vec3( 1, 0, 0),
+  new CANNON.Vec3(-1, 0, 0),
+  new CANNON.Vec3( 0, 1, 0),
+  new CANNON.Vec3( 0,-1, 0),
+  new CANNON.Vec3( 0, 0, 1),
+  new CANNON.Vec3( 0, 0,-1),
+];
+
+const normalFaces=[2,5,1,6,3,4];
+const cheatFaces =[4,5,6,4,5,6];
+let currentFaces=normalFaces;
+
+function createDice(){
+  const materials=currentFaces.map(v =>
+    new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
+  );
+  const mesh=new THREE.Mesh(
+    new THREE.BoxGeometry(0.6,0.6,0.6),
+    materials
+  );
+  scene.add(mesh);
+  diceMeshes.push(mesh);
+
+  const body=new CANNON.Body({
+    mass:1,
+    angularDamping:0.15
+  });
+  body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
+  world.addBody(body);
+  diceBodies.push(body);
+}
+for(let i=0;i<3;i++) createDice();
+
+/* ===============================
+   判定系
+================================ */
+function getDiceValue(i){
+  const body=diceBodies[i];
+  let best=-1e9,val=0;
+  faceDirs.forEach((d,idx)=>{
+    const w=body.quaternion.vmult(d);
+    const dot=w.dot(new CANNON.Vec3(0,1,0));
+    if(dot>best){best=dot;val=currentFaces[idx];}
+  });
+  return val;
+}
+
+function isShonben(){
+  return diceBodies.some(b=>{
+    const x=b.position.x;
+    const z=b.position.z;
+    return Math.sqrt(x*x+z*z) > R;
+  });
+}
+
+function judgeRole(values){
+  const v=[...values].sort((a,b)=>a-b);
+
+  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
+  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
+  if(v.join("")==="456") return "シゴロ";
+  if(v.join("")==="123") return "ヒフミ";
+
+  if(v[0]===v[1] || v[1]===v[2]){
+    const eye = v[0]===v[1] ? v[2] : v[0];
+    return `${eye}の目`;
+  }
+  return "役なし";
+}
+
+function isStopped(){
+  return diceBodies.every(b =>
+    b.velocity.length() < 0.07 &&
+    b.angularVelocity.length() < 0.07
+  );
+}
+
+/* ===============================
+   Control
+================================ */
+let cheat=false;
+let shonben=false;
+let waitingForResult=false;
+
+btn.onclick=()=>{
+  cheat=false; shonben=false;
+  currentFaces=normalFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+cheatBtn.onclick=()=>{
+  cheat=true; shonben=false;
+  currentFaces=cheatFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+shonbenBtn.onclick=()=>{
+  cheat=false; shonben=true;
+  currentFaces=normalFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+function updateDiceMaterial(){
+  diceMeshes.forEach(m=>{
+    m.material=currentFaces.map(v =>
+      new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
+    );
+  });
+}
+
+/* ===============================
+   Roll
+================================ */
 function roll(){
-  playDiceSound();   // ← 🔊 ここだけ追加
+  playDiceSound();   // ← 🔊 ここで音を鳴らす
+
   result.textContent="…判定中";
   waitingForResult=true;
 
@@ -91,13 +291,15 @@ function roll(){
 
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
+
     if(shonben){
       b.position.set((i-1)*0.9,4.2,0);
+
       if(i===shonbenIndex){
         b.velocity.set(
           (Math.random()<0.5?-1:1)*(5.4+Math.random()*0.8),
           3.8,
-          (Math.random()-0.5)*2
+          (Math.random()-0.5)*2.0
         );
       } else {
         b.velocity.set(
@@ -122,6 +324,36 @@ function roll(){
     );
   });
 }
+
+/* ===============================
+   Loop
+================================ */
+function animate(){
+  requestAnimationFrame(animate);
+  world.step(1/60);
+
+  diceBodies.forEach((b,i)=>{
+    diceMeshes[i].position.copy(b.position);
+    diceMeshes[i].quaternion.copy(b.quaternion);
+  });
+
+  if(waitingForResult && isStopped()){
+    waitingForResult=false;
+    const values=[0,1,2].map(getDiceValue);
+
+    if(isShonben()){
+      result.textContent =
+        `出目：${values.join(" , ")}\n役：ションベン`;
+    } else {
+      const role = judgeRole(values);
+      result.textContent =
+        `出目：${values.join(" , ")}\n役：${role}`;
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
 </script>
 </body>
 </html>
