@@ -57,7 +57,7 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   🔊 サウンド（追加部分）
+   🔊 サウンド（ボタンで鳴らす）
 ================================ */
 const diceSounds = [
   new Audio("dice1.mp3"),
@@ -167,8 +167,12 @@ const faceDirs=[
   new CANNON.Vec3( 0, 0,-1),
 ];
 
+// 通常サイ（各面 2,5,1,6,3,4）
 const normalFaces=[2,5,1,6,3,4];
-let currentFaces=normalFaces;
+// 456サイ（各面 4,5,6,4,5,6）
+const cheatFaces =[4,5,6,4,5,6];
+
+let currentFaces = normalFaces;
 
 function createDice(){
   const materials=currentFaces.map(v =>
@@ -191,56 +195,172 @@ function createDice(){
 }
 for(let i=0;i<3;i++) createDice();
 
-/* ===============================
-   Control（🔊 音をここで鳴らす）
-================================ */
-btn.onclick=()=>{
-  playDiceSound();   // ← 追加
-  roll();
-};
-cheatBtn.onclick=()=>{
-  playDiceSound();   // ← 追加
-  roll();
-};
-shonbenBtn.onclick=()=>{
-  playDiceSound();   // ← 追加
-  roll();
-};
-
-/* ===============================
-   Roll（既存）
-================================ */
-function roll(){
-  result.textContent="…判定中";
-  diceBodies.forEach((b,i)=>{
-    b.wakeUp();
-    b.position.set((i-1)*0.9,3.5,0);
-    b.velocity.set(
-      (Math.random()-0.5)*3,
-      3,
-      (Math.random()-0.5)*3
-    );
-    b.angularVelocity.set(
-      (Math.random()*2-1)*6,
-      (Math.random()*2-1)*6,
-      (Math.random()*2-1)*6
+function updateDiceMaterial(){
+  diceMeshes.forEach(m=>{
+    m.material=currentFaces.map(v =>
+      new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
     );
   });
 }
 
 /* ===============================
-   Loop
+   判定系
+================================ */
+function getDiceValue(i){
+  const body=diceBodies[i];
+  let best=-1e9,val=0;
+  faceDirs.forEach((d,idx)=>{
+    const w=body.quaternion.vmult(d);
+    const dot=w.dot(new CANNON.Vec3(0,1,0));
+    if(dot>best){best=dot;val=currentFaces[idx];}
+  });
+  return val;
+}
+
+function isShonben(){
+  // 「最終的に」外に残っているか
+  return diceBodies.some(b=>{
+    const x=b.position.x;
+    const z=b.position.z;
+    return Math.sqrt(x*x+z*z) > R;
+  });
+}
+
+function judgeRole(values){
+  const v=[...values].sort((a,b)=>a-b);
+
+  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
+  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
+  if(v.join("")==="456") return "シゴロ";
+  if(v.join("")==="123") return "ヒフミ";
+
+  if(v[0]===v[1] || v[1]===v[2]){
+    const eye = v[0]===v[1] ? v[2] : v[0];
+    return `${eye}の目`;
+  }
+  return "役なし";
+}
+
+function isStopped(){
+  return diceBodies.every(b =>
+    b.velocity.length() < 0.07 &&
+    b.angularVelocity.length() < 0.07
+  );
+}
+
+/* ===============================
+   Control
+================================ */
+let cheat=false;
+let shonben=false;
+let waitingForResult=false;
+
+btn.onclick=()=>{
+  playDiceSound();
+  cheat=false; shonben=false;
+  currentFaces=normalFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+cheatBtn.onclick=()=>{
+  playDiceSound();
+  cheat=true; shonben=false;
+  currentFaces=cheatFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+shonbenBtn.onclick=()=>{
+  playDiceSound();
+  cheat=false; shonben=true;
+  currentFaces=normalFaces;
+  updateDiceMaterial();
+  roll();
+};
+
+/* ===============================
+   Roll（動きを少し大きく＆ショんベン1個外れ復活）
+================================ */
+function roll(){
+  result.textContent="…判定中";
+  waitingForResult=true;
+
+  // 💦 ションベン時：外へ飛ばすサイコロを1個だけ決める
+  const shonbenIndex = shonben
+    ? Math.floor(Math.random()*diceBodies.length)
+    : -1;
+
+  diceBodies.forEach((b,i)=>{
+    b.wakeUp();
+
+    if(shonben){
+      // ちょい高め（派手に）
+      b.position.set((i-1)*0.9, 4.8, 0);
+
+      if(i===shonbenIndex){
+        // 💦 1個だけ外へ：1個だけ飛び出るくらいに調整
+        b.velocity.set(
+          (Math.random()<0.5?-1:1) * (6.2 + Math.random()*0.8),
+          4.2,
+          (Math.random()-0.5)*2.2
+        );
+      } else {
+        // 残り2個は中に収まりやすい
+        b.velocity.set(
+          (Math.random()-0.5)*3.0,
+          3.4,
+          (Math.random()-0.5)*3.0
+        );
+      }
+    } else {
+      // 通常／イカサマ：動きを少し大きく
+      b.position.set((i-1)*0.9, 4.3, 0);
+      b.velocity.set(
+        (Math.random()-0.5)*4.2,
+        4.0,
+        (Math.random()-0.5)*4.2
+      );
+    }
+
+    // 回転：少し強め
+    b.angularVelocity.set(
+      (Math.random()*2-1)*8,
+      (Math.random()*2-1)*8,
+      (Math.random()*2-1)*8
+    );
+  });
+}
+
+/* ===============================
+   Loop（止まってから結果を確定 → 役判定が安定）
 ================================ */
 function animate(){
   requestAnimationFrame(animate);
   world.step(1/60);
+
   diceBodies.forEach((b,i)=>{
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
+
+  if(waitingForResult && isStopped()){
+    waitingForResult=false;
+
+    const values=[0,1,2].map(getDiceValue);
+
+    if(isShonben()){
+      result.textContent = `出目：${values.join(" , ")}\n役：ションベン`;
+    } else {
+      const role = judgeRole(values);
+      result.textContent = `出目：${values.join(" , ")}\n役：${role}`;
+    }
+  }
+
   renderer.render(scene,camera);
 }
 animate();
+
 </script>
 </body>
 </html>
