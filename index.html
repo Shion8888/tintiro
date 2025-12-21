@@ -3,79 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chinchiro – Final Complete</title>
+<title>Audio Test</title>
 
 <style>
 body {
   margin: 0;
-  overflow: hidden;
-  background: #111;
-  color: #fff;
-  font-family: system-ui, sans-serif;
-}
-#ui {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  height: 100vh;
   display: flex;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  background: #111;
 }
 button {
-  padding: 14px 28px;
-  font-size: 18px;
+  padding: 20px 40px;
+  font-size: 20px;
+  font-weight: bold;
   border-radius: 12px;
   border: none;
-  font-weight: bold;
   cursor: pointer;
-}
-#btn { background: #ffcc00; }
-#cheatBtn { background: #ff4444; color:#fff; }
-#shonbenBtn { background: #00bcd4; color:#000; }
-#result {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 22px;
-  text-align: center;
-  white-space: pre;
 }
 </style>
 </head>
 <body>
 
-<div id="result"></div>
-<div id="ui">
-  <button id="btn">サイコロを振る</button>
-  <button id="cheatBtn">🎲 イカサマ（456サイ）</button>
-  <button id="shonbenBtn">💦 ションベン</button>
-</div>
+<button id="soundBtn">🔊 音を鳴らす</button>
 
-<script type="module">
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
-
+<script>
 /* ===============================
-   🔊 音（これが肝）
+   Audio（最小構成）
 ================================ */
-const diceSounds = [
+const sounds = [
   new Audio("./ガラスでチンチロリン1.mp3"),
   new Audio("./ガラスでチンチロリン2.mp3")
 ];
-diceSounds.forEach(s => {
+
+sounds.forEach(s => {
   s.preload = "auto";
-  s.volume = 0.6;
+  s.volume = 0.8;
 });
 
-let soundIndex = 0;
-let audioUnlocked = false;
+let index = 0;
+let unlocked = false;
 
-// 最初のクリックで必ず実行
+// 🔑 最初のクリックで Audio を解放
 function unlockAudio(){
-  if(audioUnlocked) return;
+  if (unlocked) return;
 
-  diceSounds.forEach(s => {
+  sounds.forEach(s => {
     s.muted = true;
     s.play().catch(()=>{});
     s.pause();
@@ -83,156 +57,25 @@ function unlockAudio(){
     s.muted = false;
   });
 
-  audioUnlocked = true;
+  unlocked = true;
 }
 
-// 実際に鳴らす
-function playDiceSound(){
-  const s = diceSounds[soundIndex];
+// 🔊 実際に鳴らす
+function playSound(){
+  const s = sounds[index];
   s.currentTime = 0;
-  s.play().catch(()=>{});
-  soundIndex = (soundIndex + 1) % diceSounds.length;
-}
-
-/* ===============================
-   Dice Texture
-================================ */
-function createDiceTexture(n){
-  const c=document.createElement("canvas");
-  c.width=c.height=256;
-  const ctx=c.getContext("2d");
-  ctx.fillStyle="#ddd";
-  ctx.fillRect(0,0,256,256);
-  ctx.fillStyle="#000";
-
-  const r=18;
-  const p={
-    tl:[64,64], tr:[192,64],
-    ml:[64,128], mr:[192,128],
-    bl:[64,192], br:[192,192],
-    mc:[128,128]
-  };
-  const map={
-    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
-    4:["tl","tr","bl","br"],
-    5:["tl","tr","mc","bl","br"],
-    6:["tl","ml","bl","tr","mr","br"]
-  };
-  map[n].forEach(k=>{
-    ctx.beginPath();
-    ctx.arc(...p[k],r,0,Math.PI*2);
-    ctx.fill();
+  s.play().catch(e => {
+    console.error("play error:", e);
   });
-  return new THREE.CanvasTexture(c);
+  index = (index + 1) % sounds.length;
 }
 
-/* ===============================
-   Scene / World
-================================ */
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x222222);
-
-const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,100);
-camera.position.set(0,15,0);
-camera.lookAt(0,0,0);
-camera.up.set(0,0,-1);
-
-const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
-document.body.appendChild(renderer.domElement);
-
-scene.add(new THREE.AmbientLight(0xffffff,0.9));
-
-const world=new CANNON.World();
-world.gravity.set(0,-9.82,0);
-
-/* ===============================
-   Floor & Bowl
-================================ */
-const floor=new CANNON.Body({mass:0});
-floor.addShape(new CANNON.Plane());
-floor.quaternion.setFromEuler(-Math.PI/2,0,0);
-world.addBody(floor);
-
-const R=6;
-const inner=new THREE.Mesh(
-  new THREE.CircleGeometry(R-0.3,64),
-  new THREE.MeshStandardMaterial({color:0x8b5a2b})
-);
-inner.rotation.x=-Math.PI/2;
-scene.add(inner);
-
-const rim=new THREE.Mesh(
-  new THREE.RingGeometry(R-0.3,R,64),
-  new THREE.MeshStandardMaterial({color:0xff0000})
-);
-rim.rotation.x=-Math.PI/2;
-rim.position.y=0.01;
-scene.add(rim);
-
-/* ===============================
-   Dice
-================================ */
-const diceMeshes=[], diceBodies=[];
-for(let i=0;i<3;i++){
-  const mesh=new THREE.Mesh(
-    new THREE.BoxGeometry(0.6,0.6,0.6),
-    [1,2,3,4,5,6].map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}))
-  );
-  scene.add(mesh);
-  diceMeshes.push(mesh);
-
-  const body=new CANNON.Body({ mass:1 });
-  body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
-  world.addBody(body);
-  diceBodies.push(body);
-}
-
-/* ===============================
-   Roll
-================================ */
-function roll(){
-  playDiceSound(); // ← ここで必ず鳴る
-
-  diceBodies.forEach((b,i)=>{
-    b.wakeUp();
-    b.position.set((i-1)*0.9,3.5,0);
-    b.velocity.set(
-      (Math.random()-0.5)*3,
-      3,
-      (Math.random()-0.5)*3
-    );
-    b.angularVelocity.set(
-      (Math.random()*2-1)*6,
-      (Math.random()*2-1)*6,
-      (Math.random()*2-1)*6
-    );
-  });
-}
-
-/* ===============================
-   Button
-================================ */
-btn.onclick=()=>{
-  unlockAudio(); // ← 最初に必ず実行
-  roll();
+// ボタン
+document.getElementById("soundBtn").onclick = () => {
+  unlockAudio();  // ← これが最重要
+  playSound();
 };
-cheatBtn.onclick=btn.onclick;
-shonbenBtn.onclick=btn.onclick;
-
-/* ===============================
-   Loop
-================================ */
-function animate(){
-  requestAnimationFrame(animate);
-  world.step(1/60);
-  diceBodies.forEach((b,i)=>{
-    diceMeshes[i].position.copy(b.position);
-    diceMeshes[i].quaternion.copy(b.quaternion);
-  });
-  renderer.render(scene,camera);
-}
-animate();
 </script>
+
 </body>
 </html>
