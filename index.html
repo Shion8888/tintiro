@@ -57,7 +57,7 @@ import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 import * as CANNON from "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js";
 
 /* ===============================
-   🔊 Dice Sound（ここだけ追加）
+   🔊 音（これが肝）
 ================================ */
 const diceSounds = [
   new Audio("./ガラスでチンチロリン1.mp3"),
@@ -67,17 +67,31 @@ diceSounds.forEach(s => {
   s.preload = "auto";
   s.volume = 0.6;
 });
-let diceSoundIndex = 0;
 
-function playDiceSound(){
-  const s = diceSounds[diceSoundIndex];
-  try {
+let soundIndex = 0;
+let audioUnlocked = false;
+
+// 最初のクリックで必ず実行
+function unlockAudio(){
+  if(audioUnlocked) return;
+
+  diceSounds.forEach(s => {
+    s.muted = true;
+    s.play().catch(()=>{});
+    s.pause();
     s.currentTime = 0;
-    s.play();
-  } catch(e) {
-    console.warn("sound error", e);
-  }
-  diceSoundIndex = (diceSoundIndex + 1) % diceSounds.length;
+    s.muted = false;
+  });
+
+  audioUnlocked = true;
+}
+
+// 実際に鳴らす
+function playDiceSound(){
+  const s = diceSounds[soundIndex];
+  s.currentTime = 0;
+  s.play().catch(()=>{});
+  soundIndex = (soundIndex + 1) % diceSounds.length;
 }
 
 /* ===============================
@@ -99,9 +113,7 @@ function createDiceTexture(n){
     mc:[128,128]
   };
   const map={
-    1:["mc"],
-    2:["tl","br"],
-    3:["tl","mc","br"],
+    1:["mc"],2:["tl","br"],3:["tl","mc","br"],
     4:["tl","tr","bl","br"],
     5:["tl","tr","mc","bl","br"],
     6:["tl","ml","bl","tr","mr","br"]
@@ -162,161 +174,34 @@ scene.add(rim);
    Dice
 ================================ */
 const diceMeshes=[], diceBodies=[];
-const faceDirs=[
-  new CANNON.Vec3( 1, 0, 0),
-  new CANNON.Vec3(-1, 0, 0),
-  new CANNON.Vec3( 0, 1, 0),
-  new CANNON.Vec3( 0,-1, 0),
-  new CANNON.Vec3( 0, 0, 1),
-  new CANNON.Vec3( 0, 0,-1),
-];
-
-const normalFaces=[2,5,1,6,3,4];
-const cheatFaces =[4,5,6,4,5,6];
-let currentFaces=normalFaces;
-
-function createDice(){
-  const materials=currentFaces.map(v =>
-    new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
-  );
+for(let i=0;i<3;i++){
   const mesh=new THREE.Mesh(
     new THREE.BoxGeometry(0.6,0.6,0.6),
-    materials
+    [1,2,3,4,5,6].map(v=>new THREE.MeshStandardMaterial({map:createDiceTexture(v)}))
   );
   scene.add(mesh);
   diceMeshes.push(mesh);
 
-  const body=new CANNON.Body({
-    mass:1,
-    angularDamping:0.15
-  });
+  const body=new CANNON.Body({ mass:1 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(0.3,0.3,0.3)));
   world.addBody(body);
   diceBodies.push(body);
-}
-for(let i=0;i<3;i++) createDice();
-
-/* ===============================
-   判定系
-================================ */
-function getDiceValue(i){
-  const body=diceBodies[i];
-  let best=-1e9,val=0;
-  faceDirs.forEach((d,idx)=>{
-    const w=body.quaternion.vmult(d);
-    const dot=w.dot(new CANNON.Vec3(0,1,0));
-    if(dot>best){best=dot;val=currentFaces[idx];}
-  });
-  return val;
-}
-
-function isShonben(){
-  return diceBodies.some(b=>{
-    const x=b.position.x;
-    const z=b.position.z;
-    return Math.sqrt(x*x+z*z) > R;
-  });
-}
-
-function judgeRole(values){
-  const v=[...values].sort((a,b)=>a-b);
-
-  if(v[0]===1 && v[1]===1 && v[2]===1) return "ピンゾロ";
-  if(v[0]===v[1] && v[1]===v[2]) return "アラシ";
-  if(v.join("")==="456") return "シゴロ";
-  if(v.join("")==="123") return "ヒフミ";
-
-  if(v[0]===v[1] || v[1]===v[2]){
-    const eye = v[0]===v[1] ? v[2] : v[0];
-    return `${eye}の目`;
-  }
-  return "役なし";
-}
-
-function isStopped(){
-  return diceBodies.every(b =>
-    b.velocity.length() < 0.07 &&
-    b.angularVelocity.length() < 0.07
-  );
-}
-
-/* ===============================
-   Control
-================================ */
-let cheat=false;
-let shonben=false;
-let waitingForResult=false;
-
-btn.onclick=()=>{
-  cheat=false; shonben=false;
-  currentFaces=normalFaces;
-  updateDiceMaterial();
-  roll();
-};
-
-cheatBtn.onclick=()=>{
-  cheat=true; shonben=false;
-  currentFaces=cheatFaces;
-  updateDiceMaterial();
-  roll();
-};
-
-shonbenBtn.onclick=()=>{
-  cheat=false; shonben=true;
-  currentFaces=normalFaces;
-  updateDiceMaterial();
-  roll();
-};
-
-function updateDiceMaterial(){
-  diceMeshes.forEach(m=>{
-    m.material=currentFaces.map(v =>
-      new THREE.MeshStandardMaterial({map:createDiceTexture(v)})
-    );
-  });
 }
 
 /* ===============================
    Roll
 ================================ */
 function roll(){
-  playDiceSound();   // ← 🔊 ここで音を鳴らす
-
-  result.textContent="…判定中";
-  waitingForResult=true;
-
-  const shonbenIndex = shonben
-    ? Math.floor(Math.random()*diceBodies.length)
-    : -1;
+  playDiceSound(); // ← ここで必ず鳴る
 
   diceBodies.forEach((b,i)=>{
     b.wakeUp();
-
-    if(shonben){
-      b.position.set((i-1)*0.9,4.2,0);
-
-      if(i===shonbenIndex){
-        b.velocity.set(
-          (Math.random()<0.5?-1:1)*(5.4+Math.random()*0.8),
-          3.8,
-          (Math.random()-0.5)*2.0
-        );
-      } else {
-        b.velocity.set(
-          (Math.random()-0.5)*2.2,
-          2.8,
-          (Math.random()-0.5)*2.2
-        );
-      }
-    } else {
-      b.position.set((i-1)*0.9,3.5,0);
-      b.velocity.set(
-        (Math.random()-0.5)*3,
-        3,
-        (Math.random()-0.5)*3
-      );
-    }
-
+    b.position.set((i-1)*0.9,3.5,0);
+    b.velocity.set(
+      (Math.random()-0.5)*3,
+      3,
+      (Math.random()-0.5)*3
+    );
     b.angularVelocity.set(
       (Math.random()*2-1)*6,
       (Math.random()*2-1)*6,
@@ -326,31 +211,25 @@ function roll(){
 }
 
 /* ===============================
+   Button
+================================ */
+btn.onclick=()=>{
+  unlockAudio(); // ← 最初に必ず実行
+  roll();
+};
+cheatBtn.onclick=btn.onclick;
+shonbenBtn.onclick=btn.onclick;
+
+/* ===============================
    Loop
 ================================ */
 function animate(){
   requestAnimationFrame(animate);
   world.step(1/60);
-
   diceBodies.forEach((b,i)=>{
     diceMeshes[i].position.copy(b.position);
     diceMeshes[i].quaternion.copy(b.quaternion);
   });
-
-  if(waitingForResult && isStopped()){
-    waitingForResult=false;
-    const values=[0,1,2].map(getDiceValue);
-
-    if(isShonben()){
-      result.textContent =
-        `出目：${values.join(" , ")}\n役：ションベン`;
-    } else {
-      const role = judgeRole(values);
-      result.textContent =
-        `出目：${values.join(" , ")}\n役：${role}`;
-    }
-  }
-
   renderer.render(scene,camera);
 }
 animate();
