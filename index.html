@@ -7,20 +7,31 @@
 <body>
 
 <button id="play">音を鳴らす</button>
+<div id="log"></div>
 
 <script>
-const sounds = [
-  new Audio("./dice1.mp3"),
-  new Audio("./dice2.mp3")
-];
+const log = msg => document.getElementById("log").textContent = msg;
 
-let i = 0;
+// 🔑 絶対にここは相対パス
+const sound1 = new Audio("dice1.mp3");
+const sound2 = new Audio("dice2.mp3");
 
-document.getElementById("play").onclick = () => {
-  sounds[i].currentTime = 0;
-  sounds[i].play();
-  i = (i + 1) % sounds.length;
-};
+let toggle = false;
+
+document.getElementById("play").addEventListener("click", () => {
+  try {
+    const s = toggle ? sound1 : sound2;
+    toggle = !toggle;
+
+    s.currentTime = 0;
+    s.play()
+      .then(() => log("再生成功"))
+      .catch(e => log("再生エラー: " + e.message));
+
+  } catch (e) {
+    log("例外: " + e.message);
+  }
+});
 </script>
 
 </body>
